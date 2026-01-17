@@ -1,0 +1,279 @@
+You are Claude Code working inside the existing Flutter repo “Health Keeper (Working Name)”.
+Follow the repo working agreement and constraints from CLAUDE.md:
+- Flutter app (iOS-first), Riverpod, go_router, Drift (SQLite), Dio, talker.
+- HealthKit via healthkit_service.dart.
+- All AI calls MUST go through core/services/gemini_coach_service.dart (Gemini 2.5 API).
+- Privacy-first, local-first. No backend/auth/subscriptions. Single device.
+- Not a medical device. No diagnosis. Keep “coach vibe”, calm, concise. No guilt language.
+- All AI outputs must be editable by the user. AI = estimate.
+- Keep PRs small and complete (one feature per PR), with migrations and tests.
+
+GOAL (Product):
+Add a “ChatGPT-like” intelligence layer to the existing app WITHOUT changing the existing UI layout/screens/structure.
+We will ADD an in-app chat window (bottom sheet/modal) that behaves like a domain-specific ChatGPT limited to the user’s personal health/nutrition/training data.
+The assistant must:
+1) Read HealthKit-derived metrics + app logs (meals, workouts, recovery, protocol).
+2) React to events (unexpected activity, high workday load, missed soccer, missed training).
+3) Propose changes (nutrition targets, recipes, weekly plan, soccer reschedule, add/remove sessions).
+4) Execute changes in the local DB ONLY via structured Actions and an Executor.
+5) IMPORTANT: Large plan changes (move/cancel soccer, add/remove sessions, modify week-level training load) MUST REQUIRE explicit user confirmation EVERY TIME before writing to DB.
+
+NON-GOALS:
+- Do not redesign the app UI or navigation. No new major tabs.
+- No backend sync or cloud storage.
+- No medical diagnosis, no medication dosage changes. User-entered schedules only.
+- No “always-on background AI”. Use event triggers + user chat interactions.
+
+HIGH-LEVEL DESIGN:
+We will implement an “Agent + Tools” pattern:
+- Chat UI is a bottom sheet/modal opened from existing screens via a small “Coach” button (FAB or icon button), matching current theme.
+- The Agent builds a compact context bundle from local data depending on where the chat is opened (Nutrition screen context vs Workouts screen context vs Home screen context).
+- The Agent calls GeminiCoachService with a strict system prompt and returns:
+  (a) assistant text (concise)
+  (b) optional structured Action Proposals (JSON) to modify data/plans
+  (c) suggested quick replies/buttons
+- The App NEVER lets the model directly write to DB.
+- Instead, Action Proposals are stored locally as PendingProposals, shown to user in a “Plan Preview Card” inside the chat.
+- When user taps “Approve”, the ActionExecutor validates constraints and applies DB mutations.
+- Every write is logged in AuditLog (local).
+
+DATA MODEL CHANGES (Drift):
+Add new tables/entities (keep naming consistent with existing style and Freezed models):
+
+1) chat_threads
+- id (text/uuid), title (nullable), createdAt, updatedAt
+
+2) chat_messages
+- id, threadId, role (user/assistant/system), text, createdAt
+- contextTag (e.g., "home", "nutrition", "workouts", "recovery", "protocol")
+- attachmentsJson (nullable): references to MealLog id, WorkoutLog id, DailyLog id, image uri, etc.
+- proposalId (nullable) linking to pending_proposals
+
+3) activity_events
+Purpose: represent high-level events like soccer, run, walk, high-activity workday, strength session (even if derived from watch/HealthKit).
+Columns:
+- id, type (enum string: soccer|walk|run|workday_high_load|strength|recovery|other)
+- startAt, endAt (or durationMin)
+- intensity (1-5) optional
+- source (healthkit|manual)
+- notes optional
+- derivedStrain optional numeric
+
+4) training_plans (plan_instances)
+- id, weekStartDate (date), createdAt, updatedAt
+- templateId (nullable)
+- status (active|archived)
+- version (int)
+
+5) training_plan_sessions (planned sessions)
+- id, planId, dayOfWeek (1-7), sessionType (soccer|walk|run|strength|mobility|rest|custom)
+- durationMin, intensity (1-5), title, notes
+- tutorialRefsJson (nullable): list of exercise ids or media refs (for future)
+- isLocked (bool) optional
+
+6) pending_proposals
+- id (proposal_id), createdAt
+- type (string)
+- scope (small|large)
+- requiresConfirmation (bool) ALWAYS true for scope=large
+- status (pending|approved|rejected|expired)
+- proposalJson (text)
+- contextTag (home/nutrition/workouts/recovery/protocol)
+- previewTitle, previewSummary (text) to show in UI
+
+7) audit_log
+- id, createdAt
+- actionType (string)
+- summaryText
+- proposalId (nullable)
+- beforeSnapshotHash/afterSnapshotHash (nullable) OR beforeJson/afterJson (optional lightweight)
+Keep audit minimal and privacy-safe.
+
+MIGRATIONS:
+- Add Drift migration(s) with safe defaults.
+- Provide a rollback strategy note (not code) in PR description.
+
+CORE SERVICES / ARCHITECTURE:
+Create new feature module without changing existing screen layout:
+lib/features/coach_chat/
+- data/
+  - coach_chat_repository.dart (Drift read/write messages, proposals)
+  - coach_chat_dao.dart (if repo uses DAO pattern)
+- domain/
+  - entities: CoachReply, ActionProposal, PlanDiff, QuickReply
+  - usecases:
+    - SendChatMessageUseCase
+    - BuildChatContextUseCase
+    - RequestCoachReplyUseCase
+    - ApproveProposalUseCase
+    - RejectProposalUseCase
+- presentation/
+  - coach_chat_bottom_sheet.dart
+  - coach_message_bubble.dart
+  - proposal_card.dart (Approve/Reject/Edit)
+  - providers (Riverpod): threadProvider, messagesProvider, pendingProposalProvider
+
+core/services additions:
+1) core/services/coach_agent_service.dart
+- Uses GeminiCoachService ONLY.
+- Exposes:
+  - Future<CoachReply> getReply({
+      required String userMessage,
+      required CoachContext context,
+      required String languagePreference,
+    });
+
+2) core/services/action_executor.dart
+- Applies validated actions to repositories/DAOs.
+- Never calls Gemini.
+- Methods:
+  - Future<ExecutionResult> applyProposal(ActionProposal proposal)
+  - internally: validateProposal(), applyMutations(), logAudit()
+
+3) core/services/coach_context_builder.dart
+- Builds context bundle by calling repositories:
+  - Today snapshot (DailyLog + RecoveryMetrics + Meal summary + Workout summary)
+  - Last 7 days summary (trends)
+  - Current protocol (Protocol + constraints)
+  - Current week plan (training_plans + sessions)
+  - Recent events (activity_events)
+  - Screen contextTag (nutrition/workouts/recovery/home) adds focused info
+- Ensures minimal data is sent to AI (privacy).
+
+ACTION SCHEMA (Structured Outputs):
+Define a strict JSON schema for ActionProposal to be generated by the model.
+Store schema in code as constants and validate with json_schema or manual validation.
+
+Top-level ActionProposal:
+{
+  "proposal_id": "string",
+  "type": "string",
+  "scope": "small|large",
+  "requires_confirmation": true|false,
+  "preview": { "title":"string", "summary":"string" },
+  "actions": [ ActionItem... ],
+  "constraints": [ "string"... ],
+  "reasoning_short": [ "string"... ],
+  "safe_to_auto_apply": false
+}
+
+ActionItem union types (minimum set):
+A) Nutrition
+- "log_meal": { mealLogId? OR create new meal + items, calories/macros estimates, confidence }
+- "set_nutrition_targets": { date, calories_target, protein_g, carbs_g, fat_g, water_ml, reason }
+- "suggest_recipe": { title, ingredients[], steps[], estimated_calories_range, macros, cuisineTag }
+NOTE: recipe suggestion is NOT a DB write unless user approves saving it or scheduling it.
+
+B) Events
+- "add_activity_event": { type, startAt, durationMin, intensity?, source, notes? }
+- "update_activity_event": { id, fields... }
+- "delete_activity_event": { id } (scope=large if impacts plan)
+
+C) Training Plan (ALL of these are scope=large and require confirmation ALWAYS)
+- "reschedule_session": { planId, sessionId, fromDay, toDay }
+- "add_session": { planId, dayOfWeek, sessionType, durationMin, intensity, title }
+- "cancel_session": { planId, sessionId, reason }
+- "modify_session": { planId, sessionId, changes... }
+- "apply_plan_diff": { planId, diff: { move[], add[], cancel[], modify[] } }
+
+VALIDATION RULES (Hard constraints):
+Implement these checks in ActionExecutor (reject proposal if violated):
+- Any training plan change => scope MUST be "large" and requires_confirmation MUST be true.
+- Never schedule 2 high-intensity sessions back-to-back unless explicitly allowed by constraints AND user confirms.
+- Respect recovery state:
+  - If readiness/recovery is Red today, do not schedule high intensity today.
+- Respect “soccer as high load” assumption:
+  - Day after soccer defaults to recovery or low intensity.
+- If user has knee pain flag in protocol constraints, avoid adding high-impact run/plyo; propose alternatives.
+- No medication dosage changes. Only allow “reminder schedule logging” if already user-entered.
+
+CHAT UX REQUIREMENTS (No UI redesign):
+- Add a small entry point button on existing screens (Home/Nutrition/Workouts/Recovery) to open Coach Chat bottom sheet.
+- Bottom sheet includes:
+  - message list
+  - text input
+  - send button
+  - optional quick reply chips from CoachReply
+  - proposal cards inside the chat stream with Approve/Reject/Edit
+- Editing proposals:
+  - Minimal: allow changing dayOfWeek when rescheduling soccer, or adjusting calories delta before approval.
+  - After edit, the proposal becomes “user-edited” and executor re-validates.
+
+EVENT-DRIVEN BEHAVIOR:
+When notable changes are detected (on sync / daily brief generation):
+- Create a system chat message (role=system) like:
+  “I noticed today’s recovery is low and strain is high. Want to adjust today’s plan?”
+- Do NOT spam: max 1 system message per day unless user engages.
+- Use existing alerts logic: max 2 nudges/day.
+
+PROMPTING (Gemini) REQUIREMENTS:
+Create prompt templates in code for coach_agent_service.dart:
+- System prompt: domain-restricted “Health Keeper Coach”, no general knowledge chit-chat unless it helps health decisions.
+- Must ALWAYS:
+  - Ask clarifying question if critical data missing.
+  - Provide concise coaching, actionable.
+  - Output JSON ActionProposal only when a DB write is useful.
+  - Mark training plan changes as scope=large and requires_confirmation=true.
+  - Never claim medical diagnosis. Use “not medical advice” disclaimers when relevant.
+  - Keep nudges <= 2.
+  - Use Arabic (Egypt) or English based on user preference.
+
+The model output format MUST be:
+{
+  "assistant_text": "string",
+  "quick_replies": ["string"...],
+  "proposals": [ ActionProposal... ]  // may be empty
+}
+Enforce JSON-only output with a strict parser. If parsing fails => show fallback assistant_text without writes.
+
+VOICE (Phase after core chat is stable):
+Do NOT redesign UI. Add optional TTS for assistant messages:
+- Use flutter_tts to read the last assistant message when user taps a small speaker icon on the bubble.
+- (Optional later) speech_to_text for voice input in chat, behind a mic icon.
+Implement as a separate PR.
+
+TESTS:
+Add unit tests for:
+- ActionProposal JSON parsing and validation.
+- ActionExecutor validation rules (large changes require confirmation, back-to-back intensity).
+- Context builder: builds minimal payload and correct contextTag.
+Add widget test for:
+- Proposal card approve flow => writes DB + audit log + chat confirmation message.
+
+DELIVERABLES / PR PLAN (Must be PR-sized, complete):
+PR1: Coach Chat UI (bottom sheet) + local persistence (threads/messages).
+- No AI yet. Use fake replies.
+
+PR2: CoachContextBuilder + CoachAgentService (Gemini integration) returning assistant_text + quick replies.
+- No DB writes yet.
+
+PR3: ActionProposal schema + PendingProposals table + ProposalCard UI (Approve/Reject).
+- Still no executor.
+
+PR4: ActionExecutor + validation + apply plan/nutrition/event actions + audit_log.
+- Large plan changes ALWAYS require explicit confirmation.
+- On approve => apply, write audit, append assistant confirmation message.
+
+PR5: Activity Events + Training Plan entities and minimal weekly plan generation/reschedule logic.
+- Ensure “soccer Monday” default exists in protocol weeklyActivityPlan.
+- Provide usecases: InsertSoccerDay, RescheduleSoccerDay, HandleMissedSoccerWeek.
+
+PR6 (optional): TTS for assistant message bubbles.
+
+ACCEPTANCE CRITERIA:
+- App UI remains unchanged except the added Coach entry button and bottom sheet.
+- User can open Coach Chat from Home and Nutrition/Workouts screens.
+- Coach can read today’s calories consumed/remaining and propose a compensation plan for tomorrow.
+- Coach can propose moving/canceling soccer or changing weekly plan, but nothing is applied until user taps Approve.
+- On approval, DB updates happen, and audit log records the change.
+- All AI outputs are editable and labeled as estimates.
+- No medical diagnosis language; disclaimers shown where relevant.
+
+IMPLEMENTATION NOTES:
+- Keep data sent to Gemini minimal (summaries/trends, not raw sample dumps).
+- Cache last CoachReply per day to reduce API calls (local).
+- Use talker logs for AI failures and executor rejections.
+- If Gemini API fails: show cached last response or fallback rule-based message.
+
+Now implement PR1 first with complete code, migrations, and tests. Then proceed PR2… etc.
+Return: a) file list, b) key diffs/code blocks, c) brief rationale per PR. Do not change existing screen layouts.

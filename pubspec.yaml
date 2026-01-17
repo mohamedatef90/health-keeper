@@ -1,0 +1,107 @@
+name: health_keeper
+description: "A privacy-first AI health companion with Apple Watch integration."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.10.4
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # UI
+  cupertino_icons: ^1.0.8
+  flutter_svg: ^2.0.10+1
+  fl_chart: ^0.69.0
+  cached_network_image: ^3.4.1
+  shimmer: ^3.0.0
+
+  # State Management
+  flutter_riverpod: ^2.6.1
+  riverpod_annotation: ^2.6.1
+
+  # Navigation
+  go_router: ^14.6.2
+
+  # Local Database (Drift)
+  drift: ^2.22.1
+  sqlite3_flutter_libs: ^0.5.28
+  path_provider: ^2.1.5
+  path: ^1.9.1
+
+  # Networking
+  dio: ^5.7.0
+
+  # Serialization
+  freezed_annotation: ^2.4.4
+  json_annotation: ^4.9.0
+
+  # Health & Fitness
+  health: ^11.1.0
+  permission_handler: ^11.3.1
+
+  # Camera & Media
+  camera: ^0.11.0+2
+  image_picker: ^1.1.2
+  photo_view: ^0.15.0
+
+  # Notifications
+  flutter_local_notifications: ^18.0.1
+  timezone: ^0.10.0
+
+  # AI - Google Gemini
+  google_generative_ai: ^0.4.6
+
+  # Logging
+  talker: ^4.4.1
+  talker_flutter: ^4.4.1
+
+  # Utilities
+  uuid: ^4.5.1
+  intl: any
+  equatable: ^2.0.7
+  collection: ^1.19.1
+  rxdart: ^0.28.0
+
+  # Secure Storage
+  flutter_secure_storage: ^9.2.2
+
+  # Environment
+  flutter_dotenv: ^5.2.1
+  shared_preferences: ^2.5.4
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^6.0.0
+
+  # Code Generation
+  build_runner: ^2.4.13
+  freezed: ^2.5.7
+  json_serializable: ^6.8.0
+  riverpod_generator: ^2.6.3
+  drift_dev: ^2.22.1
+
+  # Testing
+  mocktail: ^1.0.4
+  bloc_test: ^9.1.7
+
+  # App Icon Generation
+  flutter_launcher_icons: ^0.14.3
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icons/h-k.jpg"
+  remove_alpha_ios: true
+  background_color: "#000000"
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/
+    - assets/icons/
+    - assets/translations/
