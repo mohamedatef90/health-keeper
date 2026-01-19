@@ -40,6 +40,13 @@ class SettingsScreen extends ConsumerWidget {
                   subtitle: 'Eating window, medications, activities',
                   onTap: () => context.go('/protocol'),
                 ),
+                const Divider(height: 1),
+                _SettingsTile(
+                  icon: Icons.photo_library_outlined,
+                  title: 'Progress Photos',
+                  subtitle: 'Track your visual progress',
+                  onTap: () => context.go('/progress-photos'),
+                ),
               ],
             ),
           ),
@@ -82,6 +89,13 @@ class SettingsScreen extends ConsumerWidget {
                     onChanged: (value) {},
                   ),
                   onTap: () {},
+                ),
+                const Divider(height: 1),
+                _SettingsTile(
+                  icon: Icons.psychology_outlined,
+                  title: 'AI Autonomy',
+                  subtitle: 'Control what AI can change automatically',
+                  onTap: () => context.go('/autonomy-settings'),
                 ),
                 const Divider(height: 1),
                 _SettingsTile(

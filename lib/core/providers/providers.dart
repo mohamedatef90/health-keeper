@@ -14,6 +14,9 @@ import '../services/workout_detection_service.dart';
 export 'strain_provider.dart';
 export 'recovery_provider.dart';
 export 'health_monitor_provider.dart';
+export 'master_plan_provider.dart';
+export 'ai_brain_provider.dart';
+export 'whoop_features_provider.dart';
 
 /// Global logger instance
 final talkerProvider = Provider<Talker>((ref) {

@@ -4,6 +4,15 @@ import '../domain/entities/health_prediction.dart';
 import '../services/health_prediction_service.dart';
 import 'providers.dart';
 
+/// Provider for HealthKit permission status
+///
+/// Returns true if HealthKit permissions have been granted.
+/// Use this to show a "Connect Health" banner when permissions are missing.
+final healthKitPermissionStatusProvider = FutureProvider<bool>((ref) async {
+  final healthKitService = ref.watch(healthKitServiceProvider);
+  return healthKitService.hasPermissions();
+});
+
 /// Provider for the current health prediction
 ///
 /// Automatically refreshes every 4 hours or when manually triggered.

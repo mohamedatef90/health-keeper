@@ -14,7 +14,9 @@ import '../../../../core/domain/services/recovery_calculator.dart';
 import '../widgets/strain_ring.dart';
 import '../widgets/quick_action_button.dart';
 import '../widgets/daily_brief_card.dart';
+import '../widgets/connect_health_banner.dart';
 import '../../../health_monitor/presentation/widgets/proactive_nudge_card.dart';
+import '../../../coach_chat/presentation/widgets/coach_chat_button.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -112,6 +114,9 @@ class HomeScreen extends ConsumerWidget {
             children: [
               const SizedBox(height: AppSpacing.md),
 
+              // Connect Health Banner (shows when permissions not granted)
+              const ConnectHealthBanner(),
+
               // Dual Score Rings (Strain + Recovery)
               _buildScoreRings(context, strainAsync, recoveryAsync),
               const SizedBox(height: AppSpacing.lg),
@@ -167,6 +172,12 @@ class HomeScreen extends ConsumerWidget {
               ),
               const SizedBox(height: AppSpacing.xl),
 
+              // AI Plans Section
+              _buildSectionHeader('AI PLANS'),
+              const SizedBox(height: AppSpacing.sm),
+              _buildAiPlansSection(context),
+              const SizedBox(height: AppSpacing.xl),
+
               // Today's Progress
               _buildSectionHeader('TODAY\'S PROGRESS'),
               const SizedBox(height: AppSpacing.sm),
@@ -185,6 +196,9 @@ class HomeScreen extends ConsumerWidget {
             ],
           ),
         ),
+      ),
+      floatingActionButton: const CoachChatButton(
+        contextTag: 'home',
       ),
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(
@@ -208,10 +222,10 @@ class HomeScreen extends ConsumerWidget {
                 context.go('/meal-log');
                 break;
               case 2:
-                context.go('/recovery');
+                context.go('/coach');
                 break;
               case 3:
-                context.go('/progress-photos');
+                context.go('/recovery');
                 break;
             }
           },
@@ -227,14 +241,14 @@ class HomeScreen extends ConsumerWidget {
               label: 'Nutrition',
             ),
             BottomNavigationBarItem(
+              icon: Icon(Icons.fitness_center_outlined),
+              activeIcon: Icon(Icons.fitness_center),
+              label: 'Coach',
+            ),
+            BottomNavigationBarItem(
               icon: Icon(Icons.favorite_outline),
               activeIcon: Icon(Icons.favorite),
               label: 'Recovery',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.photo_library_outlined),
-              activeIcon: Icon(Icons.photo_library),
-              label: 'Progress',
             ),
           ],
         ),
@@ -335,6 +349,32 @@ class HomeScreen extends ConsumerWidget {
     if (recoveryScore >= 40) return 3;
     if (recoveryScore >= 20) return 2;
     return 1;
+  }
+
+  Widget _buildAiPlansSection(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: _AiPlanCard(
+            title: 'خطة الوجبات',
+            subtitle: 'Weekly Meal Plan',
+            icon: Icons.restaurant_menu,
+            color: AppColors.calories,
+            onTap: () => context.go('/weekly-meal-plan'),
+          ),
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: _AiPlanCard(
+            title: 'الخطة الرئيسية',
+            subtitle: 'Master Plan',
+            icon: Icons.hub,
+            color: AppColors.strain,
+            onTap: () => context.go('/master-plan'),
+          ),
+        ),
+      ],
+    );
   }
 
   Widget _buildProgressCards() {
@@ -536,6 +576,77 @@ class HomeScreen extends ConsumerWidget {
               const SizedBox(height: AppSpacing.md),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Card widget for AI Plans section
+class _AiPlanCard extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _AiPlanCard({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+      child: Container(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        decoration: BoxDecoration(
+          color: AppColors.cardDark,
+          borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+          border: Border.all(color: AppColors.borderDark),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(AppSpacing.sm),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(AppSpacing.radiusSm),
+                  ),
+                  child: Icon(icon, color: color, size: 24),
+                ),
+                const Spacer(),
+                Icon(
+                  Icons.chevron_right,
+                  color: AppColors.textTertiary,
+                  size: 20,
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              title,
+              style: AppTypography.bodyLarge.copyWith(
+                color: AppColors.textPrimary,
+                fontFamily: 'Cairo',
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            Text(
+              subtitle,
+              style: AppTypography.labelSmall.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
         ),
       ),
     );

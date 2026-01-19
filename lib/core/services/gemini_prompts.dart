@@ -1636,3 +1636,1343 @@ DISCLAIMER: Include that these are estimates and not medical advice.
 ''';
   }
 }
+
+/// Diet-aware workout recommendation prompt
+///
+/// Input: Today's nutrition (calories, protein), recovery data (HRV, RHR, sleep),
+///        strain score, workout history
+/// Output: Recommended workout type, intensity, reasoning, warnings
+class DietAwareWorkoutPrompt {
+  static String build({
+    required int caloriesConsumed,
+    required int proteinConsumed,
+    required int targetCalories,
+    required int targetProtein,
+    int? recoveryScore,
+    double? strainScore,
+    double? sleepHours,
+    int? hrv,
+    int? restingHR,
+    int workoutsThisWeek = 0,
+    List<String> constraints = const [],
+    String language = 'en',
+  }) {
+    final lang = language == 'ar' ? 'Arabic' : 'English';
+    final calorieBalance = caloriesConsumed - targetCalories;
+    final proteinPercentage = targetProtein > 0
+        ? (proteinConsumed / targetProtein * 100).round()
+        : 0;
+    final caloriePercentage = targetCalories > 0
+        ? (caloriesConsumed / targetCalories * 100).round()
+        : 0;
+
+    return '''
+$aiSafetyPreamble
+
+You are a fitness coach analyzing a user's current state to recommend the optimal workout.
+
+## TODAY'S NUTRITION DATA
+- Calories consumed: $caloriesConsumed kcal
+- Calories target: $targetCalories kcal
+- Calorie balance: ${calorieBalance >= 0 ? '+' : ''}$calorieBalance kcal ($caloriePercentage% of target)
+- Protein consumed: ${proteinConsumed}g
+- Protein target: ${targetProtein}g
+- Protein percentage: $proteinPercentage% of target
+
+## HEALTH DATA (from Apple Watch / Whoop)
+- Recovery Score: ${recoveryScore ?? 'Unknown'}/100
+- Current Strain: ${strainScore ?? 'Unknown'}/21
+- Sleep Last Night: ${sleepHours ?? 'Unknown'} hours
+- HRV: ${hrv ?? 'Unknown'} ms
+- Resting Heart Rate: ${restingHR ?? 'Unknown'} bpm
+- Workouts This Week: $workoutsThisWeek
+
+## USER CONSTRAINTS
+${constraints.isEmpty ? 'None specified' : constraints.map((c) => '- $c').join('\n')}
+
+## RECOMMENDATION RULES
+
+### Based on NUTRITION:
+1. If calorie intake is LOW (<40% of target): Suggest LIGHT activity only (walking, yoga, stretching)
+   - User is underfueled for intense exercise
+   - Warn about energy levels
+
+2. If calorie intake is MODERATE (40-70% of target): Suggest MODERATE activity
+   - Some fuel available but not optimal for intense work
+
+3. If calorie intake is HIGH (>70% of target): Activity based on recovery
+   - Adequate fuel for training
+
+4. If protein intake is HIGH (>80% of target): FAVOR strength training
+   - Good for muscle protein synthesis
+   - Optimal timing for resistance exercise
+
+5. If protein intake is LOW (<50% of target): Consider CARDIO or LIGHT work
+   - Not ideal for heavy strength training
+
+### Based on RECOVERY (from HealthKit/Whoop):
+1. Recovery < 34 (RED): REST DAY or VERY LIGHT activity
+   - Focus on mobility, stretching, walking
+   - Warn about overtraining risk
+
+2. Recovery 34-66 (YELLOW): MODERATE activity
+   - Can train but avoid maximal effort
+   - Good for technique work, moderate cardio
+
+3. Recovery > 66 (GREEN): Full training available
+   - Match intensity to nutrition status
+
+### Based on STRAIN:
+1. If strain > 15: Suggest rest or very light activity
+2. If strain 10-15: Moderate activity appropriate
+3. If strain < 10: Higher intensity available if recovery supports it
+
+## WORKOUT OPTIONS TO RECOMMEND
+- "Rest Day / Light Stretch"
+- "Light Walk (20 min)"
+- "Yoga / Mobility Session"
+- "Moderate Cardio (30 min)"
+- "Push Day" (strength)
+- "Pull Day" (strength)
+- "Leg Day" (strength)
+- "Upper Body Strength"
+- "Lower Body Strength"
+- "Full Body Strength"
+- "HIIT (if well recovered and fueled)"
+
+Respond in JSON format with $lang reasoning:
+
+```json
+{
+  "recommendedWorkout": "<workout name>",
+  "recommendedWorkoutId": "<id if matches template: push_day, pull_day, leg_day, upper_body, lower_body, full_body, hiit, cardio, core, flexibility, quick_20, five_by_five>",
+  "intensity": <1-5>,
+  "estimatedCaloriesBurn": <number>,
+  "reasoning": "<2-3 sentences explaining WHY this workout, mentioning nutrition and recovery data>",
+  "reasoningAr": "<Arabic version if language is Arabic>",
+  "warnings": ["<any concerns based on low fuel, poor recovery, etc>"],
+  "alternativeIfTired": "<lighter option if they feel fatigued>",
+  "nutritionInsight": "<one line about their nutrition status for training>",
+  "recoveryInsight": "<one line about their recovery status>",
+  "confidence": <0-100>
+}
+```
+
+Be concise, practical, and supportive. The goal is to help them train effectively while respecting their body's current state.
+
+$healthDisclaimer
+''';
+  }
+}
+
+/// Health-only workout recommendation prompt (no nutrition data)
+/// Used when user hasn't logged meals today
+class HealthOnlyWorkoutPrompt {
+  static String build({
+    int? recoveryScore,
+    double? strainScore,
+    double? sleepHours,
+    int? sleepQuality,
+    int? hrv,
+    int? restingHR,
+    int workoutsThisWeek = 0,
+    List<String> constraints = const [],
+    String language = 'en',
+  }) {
+    final lang = language == 'ar' ? 'Arabic' : 'English';
+
+    return '''
+$aiSafetyPreamble
+
+You are a fitness coach analyzing a user's health data to recommend the optimal workout.
+NOTE: The user has NOT logged any meals today, so we have NO nutrition data.
+Base your recommendation ENTIRELY on their health/recovery metrics.
+
+## HEALTH DATA (from Apple Watch / Whoop)
+- Recovery Score: ${recoveryScore ?? 'Unknown'}/100
+- Current Strain: ${strainScore != null ? strainScore.toStringAsFixed(1) : 'Unknown'}/21
+- Sleep Last Night: ${sleepHours != null ? sleepHours.toStringAsFixed(1) : 'Unknown'} hours
+- Sleep Quality: ${sleepQuality ?? 'Unknown'}%
+- HRV: ${hrv ?? 'Unknown'} ms
+- Resting Heart Rate: ${restingHR ?? 'Unknown'} bpm
+- Workouts This Week: $workoutsThisWeek
+
+## USER CONSTRAINTS
+${constraints.isEmpty ? 'None specified' : constraints.map((c) => '- $c').join('\n')}
+
+## RECOMMENDATION RULES (Health-Only)
+
+### Based on RECOVERY SCORE:
+1. Recovery < 34 (RED): REST DAY or VERY LIGHT activity
+   - Focus on mobility, stretching, walking
+   - Body needs recovery, not more stress
+   - Warn about overtraining risk
+
+2. Recovery 34-66 (YELLOW): MODERATE activity
+   - Can train but avoid maximal effort
+   - Good for technique work, moderate cardio
+   - Listen to body during session
+
+3. Recovery > 66 (GREEN): Full training available
+   - Good day for strength or intense cardio
+   - Body is ready for challenge
+
+### Based on SLEEP:
+1. Sleep < 5 hours: Suggest REST or very light activity
+   - Sleep deprivation impairs recovery and performance
+   - Risk of injury increases
+
+2. Sleep 5-7 hours: MODERATE activity
+   - Some fatigue expected
+   - Avoid heavy compound lifts
+
+3. Sleep > 7 hours: Training based on recovery score
+
+### Based on STRAIN:
+1. Strain > 15: Suggest rest or very light activity
+   - Already high accumulated stress
+2. Strain 10-15: Moderate activity appropriate
+3. Strain < 10: Higher intensity available if recovery supports it
+
+### Based on HRV (if available):
+- HRV significantly below personal baseline: Favor rest/light activity
+- HRV at or above baseline: Normal training okay
+
+### Based on WORKOUTS THIS WEEK:
+- 0-2 workouts: Can do more intense session
+- 3-4 workouts: Moderate intensity recommended
+- 5+ workouts: Consider active recovery day
+
+## WORKOUT OPTIONS TO RECOMMEND
+- "Rest Day / Light Stretch"
+- "Light Walk (20 min)"
+- "Yoga / Mobility Session"
+- "Active Recovery"
+- "Moderate Cardio (30 min)"
+- "Push Day" (strength)
+- "Pull Day" (strength)
+- "Leg Day" (strength)
+- "Upper Body Strength"
+- "Lower Body Strength"
+- "Full Body Strength"
+- "HIIT (only if well recovered)"
+
+Respond in JSON format with $lang reasoning:
+
+```json
+{
+  "recommendedWorkout": "<workout name>",
+  "recommendedWorkoutId": "<id if matches template: push_day, pull_day, leg_day, upper_body, lower_body, full_body, hiit, cardio, core, flexibility, quick_20, five_by_five>",
+  "intensity": <1-5>,
+  "estimatedCaloriesBurn": <number>,
+  "reasoning": "<2-3 sentences explaining WHY this workout based on HEALTH DATA. Mention recovery, sleep, strain as relevant>",
+  "reasoningAr": "<Arabic version if language is Arabic>",
+  "warnings": ["<any concerns based on low recovery, poor sleep, high strain, etc>"],
+  "alternativeIfTired": "<lighter option if they feel fatigued>",
+  "recoveryInsight": "<one line about their recovery/readiness status>",
+  "confidence": <0-100>
+}
+```
+
+Since we don't have nutrition data, focus entirely on recovery state and health metrics.
+Be supportive and encourage them to log meals for more personalized recommendations.
+
+$healthDisclaimer
+''';
+  }
+}
+
+/// Weekly meal plan generation prompt (7-day plan)
+///
+/// Creates a complete 7-day meal plan fitting Egyptian preferences
+/// Coordinates with workout schedule for optimal nutrition timing
+class WeeklyMealPlanPrompt {
+  static String build({
+    required int dailyCalorieTarget,
+    required int dailyProteinTarget,
+    required List<String> dietaryRestrictions,
+    required String? eatingWindowStart,
+    required String? eatingWindowEnd,
+    required List<int> workoutDays, // 0 = Monday, 6 = Sunday
+    required List<int> strengthDays,
+    required int? recoveryScore,
+    required double? strainScore,
+    required bool preferHighProtein,
+    required bool preferVegetarian,
+    required bool preferLowCarb,
+    required int workoutDayCalorieBonus,
+    required int strengthDayProteinBonus,
+    String language = 'ar',
+  }) {
+    final lang = language == 'ar' ? 'Arabic' : 'English';
+    final isArabic = language == 'ar';
+
+    // Build workout schedule description
+    final dayNames = isArabic
+        ? ['الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت', 'الأحد']
+        : ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+    final workoutSchedule = List.generate(7, (i) {
+      final isWorkout = workoutDays.contains(i);
+      final isStrength = strengthDays.contains(i);
+      if (!isWorkout) {
+        return isArabic ? '${dayNames[i]}: يوم راحة' : '${dayNames[i]}: Rest day';
+      }
+      final type = isStrength
+          ? (isArabic ? 'تمرين قوة' : 'Strength training')
+          : (isArabic ? 'تمرين' : 'Workout');
+      return '${dayNames[i]}: $type';
+    }).join('\n');
+
+    final arabicPrompt = '''
+$aiSafetyPreamble
+
+أنت مدرب تغذية متخصص في المطبخ المصري. قم بإنشاء خطة وجبات مصرية متكاملة لمدة 7 أيام.
+
+## الأهداف اليومية الأساسية
+- السعرات الحرارية: $dailyCalorieTarget سعرة/يوم
+- البروتين: ${dailyProteinTarget}g/يوم
+- زيادة السعرات في أيام التمرين: +$workoutDayCalorieBonus سعرة
+- زيادة البروتين في أيام تمارين القوة: +${strengthDayProteinBonus}g
+
+## نافذة الأكل
+${eatingWindowStart != null && eatingWindowEnd != null ? 'من $eatingWindowStart إلى $eatingWindowEnd' : 'لا توجد نافذة محددة'}
+
+## جدول التمارين هذا الأسبوع
+$workoutSchedule
+
+## حالة التعافي الحالية
+- درجة التعافي: ${recoveryScore ?? 'غير معروف'}/100
+- الإجهاد: ${strainScore != null ? strainScore.toStringAsFixed(1) : 'غير معروف'}/21
+
+## تفضيلات غذائية
+- نسبة بروتين عالية: ${preferHighProtein ? 'نعم' : 'لا'}
+- نباتي: ${preferVegetarian ? 'نعم' : 'لا'}
+- قليل الكربوهيدرات: ${preferLowCarb ? 'نعم' : 'لا'}
+- قيود غذائية: ${dietaryRestrictions.isEmpty ? 'لا يوجد' : dietaryRestrictions.join('، ')}
+
+## المتطلبات
+1. استخدم الأطعمة المصرية التقليدية المتوفرة في السوق
+2. زد السعرات الحرارية في أيام التمرين بمقدار $workoutDayCalorieBonus سعرة
+3. زد البروتين في أيام تمارين القوة بمقدار ${strengthDayProteinBonus}g
+4. راعِ نافذة الأكل المحددة
+5. وزّع البروتين بالتساوي على الوجبات
+6. قدم وجبات متنوعة ولذيذة طوال الأسبوع
+
+## أمثلة على الأطعمة المصرية
+- الفطور: فول مدمس، فلافل، بيض بالبسطرمة، جبنة فيتا، لبنة
+- الغداء: كشري، ملوخية، محشي، مشويات، فتة
+- العشاء: شوربة عدس، سلطات، بروتين خفيف
+- وجبات خفيفة: ترمس، بطاطا حلوة، تمر، مكسرات، فواكه
+
+أجب بتنسيق JSON:
+
+```json
+{
+  "weeklyPlan": {
+    "monday": {
+      "date": "الإثنين",
+      "isWorkoutDay": true/false,
+      "isStrengthDay": true/false,
+      "targetCalories": <number>,
+      "targetProtein": <number>,
+      "breakfast": {
+        "name": "<اسم الوجبة>",
+        "nameEn": "<English name>",
+        "calories": <number>,
+        "protein": <number>,
+        "carbs": <number>,
+        "fat": <number>,
+        "servingSize": "<الحصة>",
+        "timing": "<التوقيت>"
+      },
+      "lunch": { ... نفس البنية ... },
+      "dinner": { ... نفس البنية ... },
+      "snacks": [
+        { ... نفس البنية لكل وجبة خفيفة ... }
+      ],
+      "totalCalories": <number>,
+      "totalProtein": <number>,
+      "totalCarbs": <number>,
+      "totalFat": <number>,
+      "dayNote": "<ملاحظة عن اليوم>"
+    },
+    "tuesday": { ... },
+    "wednesday": { ... },
+    "thursday": { ... },
+    "friday": { ... },
+    "saturday": { ... },
+    "sunday": { ... }
+  },
+  "weeklyTotals": {
+    "totalCalories": <sum>,
+    "totalProtein": <sum>,
+    "totalCarbs": <sum>,
+    "totalFat": <sum>,
+    "averageDaily": {
+      "calories": <average>,
+      "protein": <average>
+    }
+  },
+  "coachingNote": "<نصيحة التدريب للأسبوع>",
+  "coachingNoteEn": "<English coaching note>",
+  "fitScore": <0-100>,
+  "hydrationGoal": "<كمية الماء اليومية>",
+  "disclaimer": "هذه تقديرات تقريبية وليست نصيحة طبية"
+}
+```
+
+## إرشادات التخطيط
+1. توزيع السعرات اليومية:
+   - الفطور: ~25%
+   - الغداء: ~35%
+   - العشاء: ~25%
+   - وجبات خفيفة: ~15%
+
+2. في أيام التمرين:
+   - زد السعرات حسب المحدد
+   - أضف كربوهيدرات قبل التمرين
+   - أضف بروتين بعد التمرين
+
+3. في أيام تمارين القوة:
+   - زد البروتين حسب المحدد
+   - فضل البروتين الحيواني
+
+4. التنويع:
+   - لا تكرر نفس الوجبة أكثر من مرتين في الأسبوع
+   - استخدم مصادر بروتين متنوعة
+   - وازن بين الوجبات الساخنة والباردة
+
+أنشئ خطة عملية ولذيذة يمكن للمستخدم اتباعها بسهولة.
+
+$healthDisclaimer
+''';
+
+    final englishPrompt = '''
+$aiSafetyPreamble
+
+You are a nutrition coach specializing in Egyptian cuisine. Create a complete 7-day Egyptian meal plan.
+
+## DAILY BASE TARGETS
+- Calories: $dailyCalorieTarget kcal/day
+- Protein: ${dailyProteinTarget}g/day
+- Workout day calorie bonus: +$workoutDayCalorieBonus kcal
+- Strength day protein bonus: +${strengthDayProteinBonus}g
+
+## EATING WINDOW
+${eatingWindowStart != null && eatingWindowEnd != null ? 'From $eatingWindowStart to $eatingWindowEnd' : 'No specific window'}
+
+## WORKOUT SCHEDULE THIS WEEK
+$workoutSchedule
+
+## CURRENT RECOVERY STATE
+- Recovery Score: ${recoveryScore ?? 'Unknown'}/100
+- Strain: ${strainScore != null ? strainScore.toStringAsFixed(1) : 'Unknown'}/21
+
+## DIETARY PREFERENCES
+- High Protein Focus: ${preferHighProtein ? 'Yes' : 'No'}
+- Vegetarian: ${preferVegetarian ? 'Yes' : 'No'}
+- Low Carb: ${preferLowCarb ? 'Yes' : 'No'}
+- Restrictions: ${dietaryRestrictions.isEmpty ? 'None' : dietaryRestrictions.join(', ')}
+
+## REQUIREMENTS
+1. Use traditional Egyptian foods available in local markets
+2. Increase calories on workout days by $workoutDayCalorieBonus kcal
+3. Increase protein on strength days by ${strengthDayProteinBonus}g
+4. Respect the eating window
+5. Distribute protein evenly across meals
+6. Provide varied and delicious meals throughout the week
+
+## EGYPTIAN FOOD EXAMPLES
+- Breakfast: Ful medames, falafel, eggs with pastrami, feta cheese, labneh
+- Lunch: Koshari, molokhia, mahshi, grilled meats, fattah
+- Dinner: Lentil soup, salads, light proteins
+- Snacks: Lupini beans, sweet potato, dates, nuts, fruits
+
+Respond in JSON format:
+
+```json
+{
+  "weeklyPlan": {
+    "monday": {
+      "date": "Monday",
+      "isWorkoutDay": true/false,
+      "isStrengthDay": true/false,
+      "targetCalories": <number>,
+      "targetProtein": <number>,
+      "breakfast": {
+        "name": "<meal name in Arabic>",
+        "nameEn": "<English name>",
+        "calories": <number>,
+        "protein": <number>,
+        "carbs": <number>,
+        "fat": <number>,
+        "servingSize": "<portion>",
+        "timing": "<suggested time>"
+      },
+      "lunch": { ... same structure ... },
+      "dinner": { ... same structure ... },
+      "snacks": [
+        { ... same structure for each snack ... }
+      ],
+      "totalCalories": <number>,
+      "totalProtein": <number>,
+      "totalCarbs": <number>,
+      "totalFat": <number>,
+      "dayNote": "<note about the day>"
+    },
+    "tuesday": { ... },
+    "wednesday": { ... },
+    "thursday": { ... },
+    "friday": { ... },
+    "saturday": { ... },
+    "sunday": { ... }
+  },
+  "weeklyTotals": {
+    "totalCalories": <sum>,
+    "totalProtein": <sum>,
+    "totalCarbs": <sum>,
+    "totalFat": <sum>,
+    "averageDaily": {
+      "calories": <average>,
+      "protein": <average>
+    }
+  },
+  "coachingNote": "<Arabic coaching note for the week>",
+  "coachingNoteEn": "<English coaching note>",
+  "fitScore": <0-100>,
+  "hydrationGoal": "<daily water intake>",
+  "disclaimer": "These are estimates and not medical advice"
+}
+```
+
+## PLANNING GUIDELINES
+1. Daily Calorie Distribution:
+   - Breakfast: ~25%
+   - Lunch: ~35%
+   - Dinner: ~25%
+   - Snacks: ~15%
+
+2. On Workout Days:
+   - Increase calories as specified
+   - Add carbs before workout
+   - Add protein after workout
+
+3. On Strength Days:
+   - Increase protein as specified
+   - Prefer animal proteins
+
+4. Variety:
+   - Don't repeat the same meal more than twice a week
+   - Use diverse protein sources
+   - Balance hot and cold meals
+
+Create a practical and delicious plan that the user can easily follow.
+
+$healthDisclaimer
+''';
+
+    return isArabic ? arabicPrompt : englishPrompt;
+  }
+}
+
+/// Prompt for generating weekly workout plan with actual exercises
+class WeeklyWorkoutPlanPrompt {
+  static String build({
+    required int targetWorkoutDays,
+    required List<String> fitnessGoals,
+    required List<String> availableEquipment,
+    required int? recoveryScore,
+    required double? strainScore,
+    List<String> constraints = const [],
+    List<String> preferredWorkoutTypes = const [],
+    int? mealPlanCalories,
+    String language = 'ar',
+  }) {
+    final isArabic = language == 'ar';
+
+    // List of available exercises from the library
+    const exerciseLibraryReference = '''
+AVAILABLE EXERCISES (use these exact IDs):
+
+CHEST:
+- bench_press: Barbell Bench Press (Barbell)
+- incline_bench_press: Incline Bench Press (Barbell)
+- dumbbell_press: Dumbbell Chest Press (Dumbbells)
+- incline_dumbbell_press: Incline Dumbbell Press (Dumbbells)
+- chest_fly: Dumbbell Fly (Dumbbells)
+- cable_fly: Cable Fly (Cable Machine)
+- push_ups: Push-Ups (Bodyweight)
+- chest_dips: Chest Dips (Dip Bars)
+
+BACK:
+- pull_ups: Pull-Ups (Pull-Up Bar)
+- chin_ups: Chin-Ups (Pull-Up Bar)
+- lat_pulldown: Lat Pulldown (Cable Machine)
+- barbell_row: Barbell Row (Barbell)
+- dumbbell_row: Single-Arm Dumbbell Row (Dumbbell)
+- cable_row: Seated Cable Row (Cable Machine)
+- deadlift: Deadlift (Barbell)
+- t_bar_row: T-Bar Row (Barbell)
+- face_pulls: Face Pulls (Cable Machine)
+
+SHOULDERS:
+- overhead_press: Overhead Press (Barbell)
+- dumbbell_shoulder_press: Dumbbell Shoulder Press (Dumbbells)
+- lateral_raise: Lateral Raise (Dumbbells)
+- front_raise: Front Raise (Dumbbells)
+- rear_delt_fly: Rear Delt Fly (Dumbbells)
+- arnold_press: Arnold Press (Dumbbells)
+- upright_row: Upright Row (Barbell)
+
+ARMS:
+- barbell_curl: Barbell Curl (Barbell)
+- dumbbell_curl: Dumbbell Curl (Dumbbells)
+- hammer_curl: Hammer Curl (Dumbbells)
+- preacher_curl: Preacher Curl (Barbell)
+- tricep_pushdown: Tricep Pushdown (Cable Machine)
+- tricep_dips: Tricep Dips (Dip Bars)
+- skull_crushers: Skull Crushers (Barbell)
+- overhead_tricep_extension: Overhead Tricep Extension (Dumbbell)
+- concentration_curl: Concentration Curl (Dumbbell)
+
+LEGS:
+- barbell_squat: Barbell Squat (Barbell)
+- front_squat: Front Squat (Barbell)
+- leg_press: Leg Press (Machine)
+- lunges: Walking Lunges (Dumbbells)
+- romanian_deadlift: Romanian Deadlift (Barbell)
+- leg_curl: Leg Curl (Machine)
+- leg_extension: Leg Extension (Machine)
+- calf_raise: Calf Raise (Machine)
+- goblet_squat: Goblet Squat (Dumbbell)
+- bulgarian_split_squat: Bulgarian Split Squat (Dumbbells)
+- hip_thrust: Hip Thrust (Barbell)
+
+CORE:
+- plank: Plank (Bodyweight)
+- crunches: Crunches (Bodyweight)
+- russian_twist: Russian Twist (Bodyweight)
+- leg_raise: Hanging Leg Raise (Pull-Up Bar)
+- ab_wheel: Ab Wheel Rollout (Ab Wheel)
+- mountain_climbers: Mountain Climbers (Bodyweight)
+- bicycle_crunch: Bicycle Crunch (Bodyweight)
+- dead_bug: Dead Bug (Bodyweight)
+
+CARDIO:
+- treadmill_run: Treadmill Run (Treadmill)
+- stationary_bike: Stationary Bike (Bike)
+- rowing_machine: Rowing Machine (Rower)
+- jump_rope: Jump Rope (Jump Rope)
+- burpees: Burpees (Bodyweight)
+- jumping_jacks: Jumping Jacks (Bodyweight)
+- box_jumps: Box Jumps (Box)
+- battle_ropes: Battle Ropes (Battle Ropes)
+''';
+
+    // Build goals description
+    final goalsDesc = fitnessGoals.isNotEmpty
+        ? fitnessGoals.join(', ')
+        : (isArabic ? 'قوة ولياقة عامة' : 'strength and general fitness');
+
+    // Build equipment description
+    final equipmentDesc = availableEquipment.isNotEmpty
+        ? availableEquipment.join(', ')
+        : (isArabic ? 'صالة رياضية كاملة' : 'full gym');
+
+    // Build constraints
+    final constraintsDesc = constraints.isNotEmpty
+        ? constraints.join(', ')
+        : (isArabic ? 'لا يوجد' : 'None');
+
+    final arabicPrompt = '''
+$aiSafetyPreamble
+
+أنت مدرب لياقة بدنية محترف. قم بإنشاء خطة تمارين أسبوعية كاملة لمدة 7 أيام مع تمارين محددة.
+
+## الإعدادات
+- عدد أيام التمرين المطلوبة: $targetWorkoutDays أيام
+- الأهداف: $goalsDesc
+- المعدات المتاحة: $equipmentDesc
+- القيود: $constraintsDesc
+
+## حالة التعافي
+- درجة التعافي: ${recoveryScore ?? 'غير معروف'}/100
+- الإجهاد: ${strainScore != null ? strainScore.toStringAsFixed(1) : 'غير معروف'}/21
+${mealPlanCalories != null ? '- خطة الوجبات: $mealPlanCalories سعرة/يوم' : ''}
+
+$exerciseLibraryReference
+
+## المتطلبات
+1. استخدم فقط التمارين من القائمة أعلاه (استخدم الـ ID بالضبط)
+2. وزع التمارين بشكل متوازن على العضلات
+3. أضف أيام راحة كافية للتعافي
+4. كل تمرين يجب أن يحتوي على:
+   - عدد المجموعات (sets)
+   - عدد التكرارات (reps) أو المدة بالثواني
+   - وقت الراحة بين المجموعات
+5. أضف تمارين إحماء (warmup) وتبريد (cooldown) لكل يوم
+
+## إرشادات البرنامج
+${recoveryScore != null && recoveryScore < 50 ? '⚠️ التعافي منخفض: ركز على تمارين خفيفة أو راحة' : ''}
+- ابدأ بتمارين مركبة (compound) ثم انتقل للعزل (isolation)
+- الراحة بين المجموعات: 60-90 ثانية للقوة، 30-45 ثانية للحجم
+- تدريب كل عضلة مرتين في الأسبوع للنتائج المثلى
+
+أجب بتنسيق JSON:
+
+```json
+{
+  "weeklyPlan": {
+    "monday": {
+      "workoutName": "<اسم التمرين>",
+      "workoutNameAr": "<اسم التمرين بالعربي>",
+      "category": "strength|cardio|hiit|flexibility|rest",
+      "estimatedMinutes": <number>,
+      "estimatedCaloriesBurn": <number>,
+      "suggestedIntensity": <1-5>,
+      "isRestDay": false,
+      "targetMuscleGroups": ["chest", "triceps"],
+      "equipment": ["barbell", "dumbbells"],
+      "description": "<وصف مختصر>",
+      "descriptionAr": "<وصف بالعربي>",
+      "timeOfDay": "morning|afternoon|evening",
+      "timeOfDayAr": "صباحاً|بعد الظهر|مساءً",
+      "warmup": [
+        {
+          "exerciseId": "jumping_jacks",
+          "name": "Jumping Jacks",
+          "nameAr": "قفز مع فتح الذراعين",
+          "sets": 2,
+          "durationSeconds": 30,
+          "restSeconds": 15
+        }
+      ],
+      "exercises": [
+        {
+          "exerciseId": "bench_press",
+          "name": "Barbell Bench Press",
+          "nameAr": "ضغط صدر بالبار",
+          "muscleGroup": "chest",
+          "sets": 4,
+          "reps": 8,
+          "restSeconds": 90,
+          "suggestedWeight": "Use moderate weight",
+          "suggestedWeightAr": "استخدم وزن متوسط",
+          "instruction": "Control the descent",
+          "instructionAr": "تحكم في النزول",
+          "order": 1,
+          "isSupersetWithNext": false,
+          "equipment": "Barbell"
+        }
+      ],
+      "cooldown": [
+        {
+          "exerciseId": "plank",
+          "name": "Plank",
+          "nameAr": "تمرين البلانك",
+          "sets": 2,
+          "durationSeconds": 30,
+          "restSeconds": 30
+        }
+      ],
+      "notes": "<ملاحظات إضافية>"
+    },
+    "tuesday": { ... },
+    "wednesday": { ... },
+    "thursday": { ... },
+    "friday": { ... },
+    "saturday": { ... },
+    "sunday": { ... }
+  },
+  "weeklyTotals": {
+    "totalWorkoutMinutes": <sum>,
+    "totalCaloriesBurn": <sum>,
+    "workoutDaysCount": <number>,
+    "strengthDaysCount": <number>,
+    "cardioDaysCount": <number>
+  },
+  "coachingNote": "<نصيحة عامة للأسبوع>",
+  "coachingNoteAr": "<نصيحة بالعربي>",
+  "fitnessGoals": ["strength", "hypertrophy"],
+  "equipmentRequired": ["barbell", "dumbbells", "cable_machine"]
+}
+```
+
+## أمثلة على توزيع الأسبوع:
+- Push/Pull/Legs: دفع، سحب، أرجل، راحة، تكرار
+- Upper/Lower: علوي، سفلي، راحة، تكرار
+- Full Body: جسم كامل مع راحة بين الأيام
+
+أنشئ خطة فعالة ومتوازنة!
+
+$healthDisclaimer
+''';
+
+    final englishPrompt = '''
+$aiSafetyPreamble
+
+You are a professional fitness coach. Create a complete 7-day workout plan with specific exercises.
+
+## SETTINGS
+- Target workout days: $targetWorkoutDays days
+- Goals: $goalsDesc
+- Available equipment: $equipmentDesc
+- Constraints: $constraintsDesc
+
+## RECOVERY STATUS
+- Recovery Score: ${recoveryScore ?? 'Unknown'}/100
+- Strain: ${strainScore != null ? strainScore.toStringAsFixed(1) : 'Unknown'}/21
+${mealPlanCalories != null ? '- Meal Plan: $mealPlanCalories kcal/day' : ''}
+
+$exerciseLibraryReference
+
+## REQUIREMENTS
+1. Use ONLY exercises from the list above (use exact IDs)
+2. Distribute exercises evenly across muscle groups
+3. Add adequate rest days for recovery
+4. Each exercise must include:
+   - Number of sets
+   - Reps or duration in seconds
+   - Rest time between sets
+5. Add warmup and cooldown exercises for each day
+
+## PROGRAMMING GUIDELINES
+${recoveryScore != null && recoveryScore < 50 ? '⚠️ LOW RECOVERY: Focus on light exercises or rest' : ''}
+- Start with compound movements, then isolation
+- Rest between sets: 60-90 sec for strength, 30-45 sec for hypertrophy
+- Train each muscle 2x per week for optimal results
+
+Respond in JSON format:
+
+```json
+{
+  "weeklyPlan": {
+    "monday": {
+      "workoutName": "<workout name>",
+      "workoutNameAr": "<Arabic name>",
+      "category": "strength|cardio|hiit|flexibility|rest",
+      "estimatedMinutes": <number>,
+      "estimatedCaloriesBurn": <number>,
+      "suggestedIntensity": <1-5>,
+      "isRestDay": false,
+      "targetMuscleGroups": ["chest", "triceps"],
+      "equipment": ["barbell", "dumbbells"],
+      "description": "<brief description>",
+      "descriptionAr": "<Arabic description>",
+      "timeOfDay": "morning|afternoon|evening",
+      "timeOfDayAr": "صباحاً|بعد الظهر|مساءً",
+      "warmup": [
+        {
+          "exerciseId": "jumping_jacks",
+          "name": "Jumping Jacks",
+          "nameAr": "قفز مع فتح الذراعين",
+          "sets": 2,
+          "durationSeconds": 30,
+          "restSeconds": 15
+        }
+      ],
+      "exercises": [
+        {
+          "exerciseId": "bench_press",
+          "name": "Barbell Bench Press",
+          "nameAr": "ضغط صدر بالبار",
+          "muscleGroup": "chest",
+          "sets": 4,
+          "reps": 8,
+          "restSeconds": 90,
+          "suggestedWeight": "Use moderate weight",
+          "suggestedWeightAr": "استخدم وزن متوسط",
+          "instruction": "Control the descent",
+          "instructionAr": "تحكم في النزول",
+          "order": 1,
+          "isSupersetWithNext": false,
+          "equipment": "Barbell"
+        }
+      ],
+      "cooldown": [
+        {
+          "exerciseId": "plank",
+          "name": "Plank",
+          "nameAr": "تمرين البلانك",
+          "sets": 2,
+          "durationSeconds": 30,
+          "restSeconds": 30
+        }
+      ],
+      "notes": "<additional notes>"
+    },
+    "tuesday": { ... },
+    "wednesday": { ... },
+    "thursday": { ... },
+    "friday": { ... },
+    "saturday": { ... },
+    "sunday": { ... }
+  },
+  "weeklyTotals": {
+    "totalWorkoutMinutes": <sum>,
+    "totalCaloriesBurn": <sum>,
+    "workoutDaysCount": <number>,
+    "strengthDaysCount": <number>,
+    "cardioDaysCount": <number>
+  },
+  "coachingNote": "<general advice for the week>",
+  "coachingNoteAr": "<Arabic advice>",
+  "fitnessGoals": ["strength", "hypertrophy"],
+  "equipmentRequired": ["barbell", "dumbbells", "cable_machine"]
+}
+```
+
+## EXAMPLE WEEKLY SPLITS:
+- Push/Pull/Legs: Push, Pull, Legs, Rest, repeat
+- Upper/Lower: Upper, Lower, Rest, repeat
+- Full Body: Full body with rest days between
+
+Create an effective and balanced plan!
+
+$healthDisclaimer
+''';
+
+    return isArabic ? arabicPrompt : englishPrompt;
+  }
+}
+
+/// AI Brain Chat Prompt - Conversational AI coach
+///
+/// This prompt enables natural conversation with the AI coach while providing
+/// context awareness and action execution capabilities.
+class AiBrainChatPrompt {
+  static String build({
+    required String userMessage,
+    required Map<String, dynamic> context,
+    List<Map<String, String>> conversationHistory = const [],
+    String language = 'ar',
+  }) {
+    final isArabic = language == 'ar';
+    final healthContext = context['health'] as Map<String, dynamic>? ?? {};
+    final nutritionContext = context['nutrition'] as Map<String, dynamic>? ?? {};
+    final plansContext = context['plans'] as Map<String, dynamic>? ?? {};
+    final userContext = context['user'] as Map<String, dynamic>? ?? {};
+
+    // Build conversation history string
+    final historyStr = conversationHistory.map((msg) {
+      final role = msg['role'] == 'user' ? 'User' : 'Coach';
+      return '$role: ${msg['content']}';
+    }).join('\n');
+
+    final arabicPrompt = '''
+$aiSafetyPreamble
+
+أنت مدرب صحي شخصي ذكي يساعد المستخدم في رحلته الصحية. اسمك "المدرب الذكي".
+
+## الشخصية والأسلوب
+- كن داعمًا وإيجابيًا لكن واقعيًا
+- استخدم لغة بسيطة ومباشرة
+- لا تكن متحفظًا أو رسميًا بشكل مبالغ فيه
+- استخدم "أنت" بدلاً من "حضرتك"
+- أضف لمسات شخصية (مثل "أحسنت!" أو "ممتاز!")
+- لا تستخدم الرموز التعبيرية إلا نادرًا
+
+## السياق الحالي
+
+### بيانات الصحة اليوم:
+- معدل التعافي: ${healthContext['recoveryScore'] ?? 'غير متوفر'}%
+- حالة التعافي: ${healthContext['recoveryState'] ?? 'غير متوفر'}
+- معدل الإجهاد: ${healthContext['strainScore'] ?? 'غير متوفر'}
+- ساعات النوم: ${healthContext['sleepDuration'] ?? 'غير متوفر'}
+- تقلب نبضات القلب (HRV): ${healthContext['hrv'] ?? 'غير متوفر'}
+- معدل نبضات القلب في الراحة: ${healthContext['restingHR'] ?? 'غير متوفر'}
+- الخطوات: ${healthContext['steps'] ?? 0}
+
+### بيانات التغذية اليوم:
+- السعرات المستهلكة: ${nutritionContext['caloriesConsumed'] ?? 0} من ${nutritionContext['caloriesTarget'] ?? 2000}
+- البروتين: ${nutritionContext['proteinConsumed'] ?? 0}g من ${nutritionContext['proteinTarget'] ?? 120}g
+- عدد الوجبات: ${nutritionContext['mealsLoggedToday'] ?? 0}
+- في نافذة الأكل: ${nutritionContext['isInEatingWindow'] == true ? 'نعم' : 'لا'}
+
+### الخطط النشطة:
+- خطة الوجبات: ${plansContext['hasMealPlan'] == true ? 'نشطة' : 'لا توجد'}
+- خطة التمارين: ${plansContext['hasWorkoutPlan'] == true ? 'نشطة' : 'لا توجد'}
+- تمرين اليوم: ${plansContext['todayWorkoutType'] ?? 'يوم راحة'}
+${plansContext['isTodayRestDay'] == true ? '(يوم راحة)' : ''}
+
+### معلومات المستخدم:
+- اللغة المفضلة: العربية
+- نغمة التدريب: ${userContext['coachingTone'] ?? 'داعمة'}
+
+## محادثة سابقة:
+${historyStr.isEmpty ? 'لا توجد محادثة سابقة' : historyStr}
+
+## رسالة المستخدم:
+"$userMessage"
+
+## تعليمات الرد:
+
+1. **فهم النية**: حلل رسالة المستخدم وحدد ماذا يريد
+2. **استخدم السياق**: استخدم البيانات المتوفرة لإعطاء نصيحة مخصصة
+3. **كن موجزًا**: 2-4 جمل كحد أقصى للرد الأساسي
+4. **اقترح إجراءات**: إذا كان الطلب يحتاج تغيير في الخطة، اقترح ذلك
+
+## صيغة الرد (JSON):
+
+```json
+{
+  "content": "<ردك بالعربية>",
+  "quickReplies": ["<رد سريع 1>", "<رد سريع 2>"],
+  "suggestedAction": {
+    "type": "<نوع الإجراء أو null>",
+    "description": "<وصف الإجراء>",
+    "parameters": {},
+    "requiresConfirmation": true
+  },
+  "reasoning": "<تفسير قصير لسبب هذا الرد>"
+}
+```
+
+### أنواع الإجراءات المتاحة:
+- "modify_meal_plan": تعديل خطة الوجبات
+- "modify_workout_plan": تعديل خطة التمارين
+- "log_meal": تسجيل وجبة
+- "add_rest_day": إضافة يوم راحة
+- "adjust_calories": تعديل السعرات
+- "adjust_protein": تعديل البروتين
+- "trigger_rescue_mode": تفعيل وضع الإنقاذ
+- "show_stats": عرض الإحصائيات
+- null: لا يوجد إجراء مطلوب
+
+## أمثلة:
+
+**مستخدم**: "كيف حالي اليوم؟"
+**رد**:
+```json
+{
+  "content": "تعافيك اليوم 72% - ممتاز للتمرين! نمت 6.5 ساعة (أقل من المعتاد بقليل). التمرين المقترح: Pull Day بشدة متوسطة.",
+  "quickReplies": ["ابدأ التمرين", "خفف الشدة", "أحتاج راحة"],
+  "suggestedAction": null,
+  "reasoning": "المستخدم يسأل عن حالته العامة، قدمت ملخص شامل"
+}
+```
+
+**مستخدم**: "خفف تمرين بكرة"
+**رد**:
+```json
+{
+  "content": "تمام! سأخفف شدة تمرين بكرة من 4 إلى 3. هل توافق على التغيير؟",
+  "quickReplies": ["موافق", "لا، خليها زي ما هي"],
+  "suggestedAction": {
+    "type": "modify_workout_plan",
+    "description": "تخفيف شدة تمرين الغد",
+    "parameters": {"day": "tomorrow", "newIntensity": 3},
+    "requiresConfirmation": true
+  },
+  "reasoning": "المستخدم طلب تخفيف التمرين، أقترح التغيير مع طلب التأكيد"
+}
+```
+
+$healthDisclaimer
+''';
+
+    final englishPrompt = '''
+$aiSafetyPreamble
+
+You are an intelligent personal health coach helping the user on their health journey. Your name is "AI Coach".
+
+## Personality and Style
+- Be supportive and positive but realistic
+- Use simple and direct language
+- Don't be overly formal
+- Add personal touches (like "Great job!" or "Excellent!")
+- Rarely use emojis
+
+## Current Context
+
+### Today's Health Data:
+- Recovery Score: ${healthContext['recoveryScore'] ?? 'N/A'}%
+- Recovery State: ${healthContext['recoveryState'] ?? 'N/A'}
+- Strain Score: ${healthContext['strainScore'] ?? 'N/A'}
+- Sleep Hours: ${healthContext['sleepDuration'] ?? 'N/A'}
+- HRV: ${healthContext['hrv'] ?? 'N/A'}
+- Resting HR: ${healthContext['restingHR'] ?? 'N/A'}
+- Steps: ${healthContext['steps'] ?? 0}
+
+### Today's Nutrition:
+- Calories Consumed: ${nutritionContext['caloriesConsumed'] ?? 0} of ${nutritionContext['caloriesTarget'] ?? 2000}
+- Protein: ${nutritionContext['proteinConsumed'] ?? 0}g of ${nutritionContext['proteinTarget'] ?? 120}g
+- Meals Logged: ${nutritionContext['mealsLoggedToday'] ?? 0}
+- In Eating Window: ${nutritionContext['isInEatingWindow'] == true ? 'Yes' : 'No'}
+
+### Active Plans:
+- Meal Plan: ${plansContext['hasMealPlan'] == true ? 'Active' : 'None'}
+- Workout Plan: ${plansContext['hasWorkoutPlan'] == true ? 'Active' : 'None'}
+- Today's Workout: ${plansContext['todayWorkoutType'] ?? 'Rest day'}
+${plansContext['isTodayRestDay'] == true ? '(Rest day)' : ''}
+
+### User Info:
+- Preferred Language: English
+- Coaching Tone: ${userContext['coachingTone'] ?? 'supportive'}
+
+## Previous Conversation:
+${historyStr.isEmpty ? 'No previous conversation' : historyStr}
+
+## User Message:
+"$userMessage"
+
+## Response Instructions:
+
+1. **Understand Intent**: Analyze the user message and determine what they want
+2. **Use Context**: Use available data to give personalized advice
+3. **Be Concise**: 2-4 sentences max for the main response
+4. **Suggest Actions**: If the request needs a plan change, suggest it
+
+## Response Format (JSON):
+
+```json
+{
+  "content": "<your response in English>",
+  "quickReplies": ["<quick reply 1>", "<quick reply 2>"],
+  "suggestedAction": {
+    "type": "<action type or null>",
+    "description": "<action description>",
+    "parameters": {},
+    "requiresConfirmation": true
+  },
+  "reasoning": "<brief explanation for this response>"
+}
+```
+
+### Available Action Types:
+- "modify_meal_plan": Modify meal plan
+- "modify_workout_plan": Modify workout plan
+- "log_meal": Log a meal
+- "add_rest_day": Add rest day
+- "adjust_calories": Adjust calories
+- "adjust_protein": Adjust protein
+- "trigger_rescue_mode": Activate rescue mode
+- "show_stats": Show statistics
+- null: No action needed
+
+$healthDisclaimer
+''';
+
+    return isArabic ? arabicPrompt : englishPrompt;
+  }
+
+  /// Build a prompt for generating proactive decisions
+  static String buildDecisionPrompt({
+    required Map<String, dynamic> context,
+    String language = 'ar',
+  }) {
+    final healthContext = context['health'] as Map<String, dynamic>? ?? {};
+    final trendsContext = context['trends'] as Map<String, dynamic>? ?? {};
+    final nutritionContext = context['nutrition'] as Map<String, dynamic>? ?? {};
+
+    return '''
+$aiSafetyPreamble
+
+Analyze the following health data and generate proactive recommendations.
+
+## Current Health State:
+- Recovery Score: ${healthContext['recoveryScore']}%
+- Strain Score: ${healthContext['strainScore']}
+- Sleep: ${healthContext['sleepDuration']} hours
+- HRV: ${healthContext['hrv']} (baseline: ${healthContext['hrvBaseline']})
+- RHR: ${healthContext['restingHR']} (baseline: ${healthContext['rhrBaseline']})
+
+## 7-Day Trends:
+- Recovery Trend: ${trendsContext['recoveryTrend']}
+- Strain Trend: ${trendsContext['strainTrend']}
+- Sleep Trend: ${trendsContext['sleepTrend']}
+- Average Recovery: ${trendsContext['avgRecovery']}%
+- Average Sleep: ${trendsContext['avgSleep']} hours
+
+## Nutrition Today:
+- Calories: ${nutritionContext['caloriesConsumed']}/${nutritionContext['caloriesTarget']}
+- Protein: ${nutritionContext['proteinConsumed']}g/${nutritionContext['proteinTarget']}g
+
+## Generate Decisions
+
+Respond with a JSON array of recommended decisions:
+
+```json
+{
+  "decisions": [
+    {
+      "type": "<decision_type>",
+      "urgency": "<immediate|soon|scheduled|background>",
+      "domain": "<workout|nutrition|sleep|recovery|health>",
+      "description": "<what to do>",
+      "descriptionAr": "<Arabic description>",
+      "reasoning": "<why this is recommended>",
+      "reasoningAr": "<Arabic reasoning>",
+      "impactScore": <0-100>,
+      "confidence": <0-100>,
+      "requiresApproval": <true|false>,
+      "payload": {}
+    }
+  ]
+}
+```
+
+### Decision Types:
+- "adjust_plan": Modify meal/workout plan
+- "send_notification": Send a proactive notification
+- "generate_alert": Create a health alert
+- "add_rest_day": Suggest adding a rest day
+- "increase_calories": Suggest calorie increase
+- "trigger_rescue_mode": Activate rescue mode
+
+### Rules:
+1. Only generate decisions if there's clear evidence
+2. Low recovery (<40%) for 2+ days → suggest rest day
+3. High recovery (>80%) after rest → can increase intensity
+4. Extra calories burned → suggest calorie increase
+5. Behind on protein by evening → suggest high-protein meal
+6. Sleep debt > 5 hours → sleep recommendations
+
+$healthDisclaimer
+''';
+  }
+}
+
+/// Helper class for accessing prompts
+class GeminiPrompts {
+  static String buildDietAwareWorkoutPrompt({
+    required int caloriesConsumed,
+    required int proteinConsumed,
+    required int targetCalories,
+    required int targetProtein,
+    int? recoveryScore,
+    double? strainScore,
+    double? sleepHours,
+    int? hrv,
+    int? restingHR,
+    int workoutsThisWeek = 0,
+    List<String> constraints = const [],
+    String language = 'en',
+  }) {
+    return DietAwareWorkoutPrompt.build(
+      caloriesConsumed: caloriesConsumed,
+      proteinConsumed: proteinConsumed,
+      targetCalories: targetCalories,
+      targetProtein: targetProtein,
+      recoveryScore: recoveryScore,
+      strainScore: strainScore,
+      sleepHours: sleepHours,
+      hrv: hrv,
+      restingHR: restingHR,
+      workoutsThisWeek: workoutsThisWeek,
+      constraints: constraints,
+      language: language,
+    );
+  }
+
+  static String buildHealthOnlyWorkoutPrompt({
+    int? recoveryScore,
+    double? strainScore,
+    double? sleepHours,
+    int? sleepQuality,
+    int? hrv,
+    int? restingHR,
+    int workoutsThisWeek = 0,
+    List<String> constraints = const [],
+    String language = 'en',
+  }) {
+    return HealthOnlyWorkoutPrompt.build(
+      recoveryScore: recoveryScore,
+      strainScore: strainScore,
+      sleepHours: sleepHours,
+      sleepQuality: sleepQuality,
+      hrv: hrv,
+      restingHR: restingHR,
+      workoutsThisWeek: workoutsThisWeek,
+      constraints: constraints,
+      language: language,
+    );
+  }
+
+  static String buildWeeklyMealPlanPrompt({
+    required int dailyCalorieTarget,
+    required int dailyProteinTarget,
+    List<String> dietaryRestrictions = const [],
+    String? eatingWindowStart,
+    String? eatingWindowEnd,
+    List<int> workoutDays = const [],
+    List<int> strengthDays = const [],
+    int? recoveryScore,
+    double? strainScore,
+    bool preferHighProtein = false,
+    bool preferVegetarian = false,
+    bool preferLowCarb = false,
+    int workoutDayCalorieBonus = 250,
+    int strengthDayProteinBonus = 20,
+    String language = 'ar',
+  }) {
+    return WeeklyMealPlanPrompt.build(
+      dailyCalorieTarget: dailyCalorieTarget,
+      dailyProteinTarget: dailyProteinTarget,
+      dietaryRestrictions: dietaryRestrictions,
+      eatingWindowStart: eatingWindowStart,
+      eatingWindowEnd: eatingWindowEnd,
+      workoutDays: workoutDays,
+      strengthDays: strengthDays,
+      recoveryScore: recoveryScore,
+      strainScore: strainScore,
+      preferHighProtein: preferHighProtein,
+      preferVegetarian: preferVegetarian,
+      preferLowCarb: preferLowCarb,
+      workoutDayCalorieBonus: workoutDayCalorieBonus,
+      strengthDayProteinBonus: strengthDayProteinBonus,
+      language: language,
+    );
+  }
+
+  static String buildWeeklyWorkoutPlanPrompt({
+    required int targetWorkoutDays,
+    List<String> fitnessGoals = const ['strength', 'fitness'],
+    List<String> availableEquipment = const ['full_gym'],
+    int? recoveryScore,
+    double? strainScore,
+    List<String> constraints = const [],
+    List<String> preferredWorkoutTypes = const [],
+    int? mealPlanCalories,
+    String language = 'ar',
+  }) {
+    return WeeklyWorkoutPlanPrompt.build(
+      targetWorkoutDays: targetWorkoutDays,
+      fitnessGoals: fitnessGoals,
+      availableEquipment: availableEquipment,
+      recoveryScore: recoveryScore,
+      strainScore: strainScore,
+      constraints: constraints,
+      preferredWorkoutTypes: preferredWorkoutTypes,
+      mealPlanCalories: mealPlanCalories,
+      language: language,
+    );
+  }
+
+  /// Build AI Brain chat prompt for conversational coaching
+  static String buildAiBrainChatPrompt({
+    required String userMessage,
+    required Map<String, dynamic> context,
+    List<Map<String, String>> conversationHistory = const [],
+    String language = 'ar',
+  }) {
+    return AiBrainChatPrompt.build(
+      userMessage: userMessage,
+      context: context,
+      conversationHistory: conversationHistory,
+      language: language,
+    );
+  }
+
+  /// Build AI Brain decision prompt for proactive recommendations
+  static String buildAiBrainDecisionPrompt({
+    required Map<String, dynamic> context,
+    String language = 'ar',
+  }) {
+    return AiBrainChatPrompt.buildDecisionPrompt(
+      context: context,
+      language: language,
+    );
+  }
+}

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:permission_handler/permission_handler.dart';
 
+import '../../../../core/providers/providers.dart';
 import '../../../../core/ui/tokens/colors.dart';
 import '../../../../core/ui/tokens/spacing.dart';
 import '../../../../core/ui/tokens/typography.dart';
@@ -215,8 +217,44 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   }
 
   Future<void> _handlePermission(OnboardingStep step) async {
-    // TODO: Implement actual permission requests
-    // For now, just move to next page
+    bool granted = false;
+
+    switch (step.permissionType) {
+      case PermissionType.healthKit:
+        // Request HealthKit permissions
+        final healthKitService = ref.read(healthKitServiceProvider);
+        granted = await healthKitService.requestPermissions();
+        if (!granted && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('HealthKit access is needed for recovery tracking'),
+              backgroundColor: AppColors.alert,
+            ),
+          );
+        }
+        break;
+
+      case PermissionType.photos:
+        // Request camera and photo library permissions
+        final cameraStatus = await Permission.camera.request();
+        final photosStatus = await Permission.photos.request();
+        granted = cameraStatus.isGranted || photosStatus.isGranted;
+        break;
+
+      case PermissionType.notifications:
+        // Request notification permissions
+        final notificationStatus = await Permission.notification.request();
+        granted = notificationStatus.isGranted;
+        break;
+
+      case PermissionType.aiConsent:
+        // AI consent is just acknowledgement, always granted
+        granted = true;
+        break;
+    }
+
+    // Move to next page regardless of permission result
+    // (user can always grant later in settings)
     _nextPage();
   }
 }

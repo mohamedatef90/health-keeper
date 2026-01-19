@@ -165,6 +165,102 @@ abstract class GeminiCoachService {
     bool isRamadan,
     String language,
   });
+
+  /// Generate a complete 7-day weekly meal plan
+  ///
+  /// Creates a full week's meal plan optimized for Egyptian cuisine,
+  /// coordinated with workout schedule, and adjusted for health data.
+  Future<AiWeeklyMealPlanResult> generateWeeklyMealPlan({
+    required int dailyCalorieTarget,
+    required int dailyProteinTarget,
+    List<String> dietaryRestrictions,
+    String? eatingWindowStart,
+    String? eatingWindowEnd,
+    List<int> workoutDays,
+    List<int> strengthDays,
+    int? recoveryScore,
+    double? strainScore,
+    bool preferHighProtein,
+    bool preferVegetarian,
+    bool preferLowCarb,
+    int workoutDayCalorieBonus,
+    int strengthDayProteinBonus,
+    String language,
+  });
+
+  /// Get diet-aware workout recommendation
+  ///
+  /// Analyzes today's nutrition intake along with recovery and strain data
+  /// to recommend the optimal workout. Considers:
+  /// - Calorie and protein consumption vs. targets
+  /// - Recovery score from HealthKit/Whoop
+  /// - Current strain and workout history
+  /// - User constraints (injuries, no gym, etc.)
+  Future<DietAwareWorkoutResult> getDietAwareWorkoutRecommendation({
+    required int caloriesConsumed,
+    required int proteinConsumed,
+    required int targetCalories,
+    required int targetProtein,
+    int? recoveryScore,
+    double? strainScore,
+    double? sleepHours,
+    int? hrv,
+    int? restingHR,
+    int workoutsThisWeek,
+    List<String> constraints,
+    String language,
+  });
+
+  /// Get health-only workout recommendation (no nutrition data)
+  ///
+  /// Used when user hasn't logged meals today. Analyzes recovery and health
+  /// data from HealthKit/Whoop to recommend optimal workout. Considers:
+  /// - Recovery score (0-100)
+  /// - Strain score (0-21)
+  /// - Sleep hours and quality
+  /// - HRV and resting heart rate trends
+  /// - Recent workout history
+  Future<DietAwareWorkoutResult> getHealthOnlyWorkoutRecommendation({
+    int? recoveryScore,
+    double? strainScore,
+    double? sleepHours,
+    int? sleepQuality,
+    int? hrv,
+    int? restingHR,
+    int workoutsThisWeek,
+    List<String> constraints,
+    String language,
+  });
+
+  /// Generate a complete 7-day weekly workout plan with exercises
+  ///
+  /// Creates a full week's workout plan with specific exercises,
+  /// sets, reps, and timing. Considers:
+  /// - User's fitness goals (strength, hypertrophy, etc.)
+  /// - Available equipment
+  /// - Recovery status
+  /// - Constraints (injuries, time limits)
+  /// - Meal plan coordination (if available)
+  Future<AiWeeklyWorkoutPlanResult> generateWeeklyWorkoutPlan({
+    required int targetWorkoutDays,
+    List<String> fitnessGoals,
+    List<String> availableEquipment,
+    int? recoveryScore,
+    double? strainScore,
+    List<String> constraints,
+    List<String> preferredWorkoutTypes,
+    int? mealPlanCalories,
+    String language,
+  });
+
+  // ============ GENERIC AI CONTENT GENERATION ============
+
+  /// Generate raw content from a prompt
+  ///
+  /// Low-level method for custom prompt handling.
+  /// Returns raw text response from Gemini.
+  /// Used by AI Brain for chat and decision generation.
+  Future<String?> generateContent(String prompt);
 }
 
 /// Gemini 2.5 implementation of GeminiCoachService
@@ -173,15 +269,21 @@ class GeminiCoachServiceImpl implements GeminiCoachService {
   late final GenerativeModel _model;
   late final GenerativeModel _visionModel;
 
+  late final String _apiKey;
+  bool _isInitialized = false;
+
   GeminiCoachServiceImpl({required Talker talker}) : _talker = talker {
-    final apiKey = dotenv.env['GEMINI_API_KEY'] ?? '';
-    if (apiKey.isEmpty) {
-      _talker.warning('GEMINI_API_KEY not found in environment');
+    _apiKey = dotenv.env['GEMINI_API_KEY'] ?? '';
+    if (_apiKey.isEmpty) {
+      _talker.error('GEMINI_API_KEY not found in environment. Make sure .env file is in assets and contains GEMINI_API_KEY.');
+      _isInitialized = false;
+    } else {
+      _isInitialized = true;
     }
 
     _model = GenerativeModel(
       model: 'gemini-2.0-flash',
-      apiKey: apiKey,
+      apiKey: _apiKey,
       generationConfig: GenerationConfig(
         temperature: 0.7,
         topK: 40,
@@ -192,7 +294,7 @@ class GeminiCoachServiceImpl implements GeminiCoachService {
 
     _visionModel = GenerativeModel(
       model: 'gemini-2.0-flash',
-      apiKey: apiKey,
+      apiKey: _apiKey,
       generationConfig: GenerationConfig(
         temperature: 0.3,
         topK: 32,
@@ -1525,6 +1627,433 @@ Avoid body-shaming language.
       return AiDailyMealPlanResult.fallback();
     }
   }
+
+  @override
+  Future<DietAwareWorkoutResult> getDietAwareWorkoutRecommendation({
+    required int caloriesConsumed,
+    required int proteinConsumed,
+    required int targetCalories,
+    required int targetProtein,
+    int? recoveryScore,
+    double? strainScore,
+    double? sleepHours,
+    int? hrv,
+    int? restingHR,
+    int workoutsThisWeek = 0,
+    List<String> constraints = const [],
+    String language = 'en',
+  }) async {
+    try {
+      final prompt = GeminiPrompts.buildDietAwareWorkoutPrompt(
+        caloriesConsumed: caloriesConsumed,
+        proteinConsumed: proteinConsumed,
+        targetCalories: targetCalories,
+        targetProtein: targetProtein,
+        recoveryScore: recoveryScore,
+        strainScore: strainScore,
+        sleepHours: sleepHours,
+        hrv: hrv,
+        restingHR: restingHR,
+        workoutsThisWeek: workoutsThisWeek,
+        constraints: constraints,
+        language: language,
+      );
+
+      final response = await _model.generateContent([Content.text(prompt)]);
+      final text = response.text ?? '';
+
+      return _parseDietAwareWorkoutResponse(text);
+    } catch (e, st) {
+      _talker.error('Failed to generate diet-aware workout recommendation', e, st);
+      return DietAwareWorkoutResult.fallback();
+    }
+  }
+
+  @override
+  Future<AiWeeklyMealPlanResult> generateWeeklyMealPlan({
+    required int dailyCalorieTarget,
+    required int dailyProteinTarget,
+    List<String> dietaryRestrictions = const [],
+    String? eatingWindowStart,
+    String? eatingWindowEnd,
+    List<int> workoutDays = const [],
+    List<int> strengthDays = const [],
+    int? recoveryScore,
+    double? strainScore,
+    bool preferHighProtein = false,
+    bool preferVegetarian = false,
+    bool preferLowCarb = false,
+    int workoutDayCalorieBonus = 250,
+    int strengthDayProteinBonus = 20,
+    String language = 'ar',
+  }) async {
+    try {
+      final prompt = GeminiPrompts.buildWeeklyMealPlanPrompt(
+        dailyCalorieTarget: dailyCalorieTarget,
+        dailyProteinTarget: dailyProteinTarget,
+        dietaryRestrictions: dietaryRestrictions,
+        eatingWindowStart: eatingWindowStart,
+        eatingWindowEnd: eatingWindowEnd,
+        workoutDays: workoutDays,
+        strengthDays: strengthDays,
+        recoveryScore: recoveryScore,
+        strainScore: strainScore,
+        preferHighProtein: preferHighProtein,
+        preferVegetarian: preferVegetarian,
+        preferLowCarb: preferLowCarb,
+        workoutDayCalorieBonus: workoutDayCalorieBonus,
+        strengthDayProteinBonus: strengthDayProteinBonus,
+        language: language,
+      );
+
+      // Check if initialized
+      if (!_isInitialized || _apiKey.isEmpty) {
+        throw Exception('Gemini API not initialized. Please check your GEMINI_API_KEY in .env file.');
+      }
+
+      // Use model with higher token output for 7-day plan
+      final weeklyModel = GenerativeModel(
+        model: 'gemini-2.0-flash',
+        apiKey: _apiKey,
+        generationConfig: GenerationConfig(
+          temperature: 0.7,
+          topK: 40,
+          topP: 0.95,
+          maxOutputTokens: 8192, // Higher limit for weekly plan
+        ),
+      );
+
+      final response = await weeklyModel.generateContent([Content.text(prompt)]);
+      final text = response.text ?? '';
+
+      return _parseWeeklyMealPlanResponse(text);
+    } catch (e, st) {
+      _talker.error('Failed to generate weekly meal plan', e, st);
+      return AiWeeklyMealPlanResult.fallback();
+    }
+  }
+
+  AiWeeklyMealPlanResult _parseWeeklyMealPlanResponse(String text) {
+    final data = _extractJson(text);
+    if (data == null) return AiWeeklyMealPlanResult.fallback();
+
+    try {
+      final weeklyPlan = data['weeklyPlan'] as Map<String, dynamic>? ?? {};
+      final weeklyTotals = data['weeklyTotals'] as Map<String, dynamic>? ?? {};
+
+      // Parse each day's plan
+      AiDayMealPlan? parseDay(String dayKey) {
+        final dayData = weeklyPlan[dayKey] as Map<String, dynamic>?;
+        if (dayData == null) return null;
+
+        return AiDayMealPlan(
+          dayName: dayData['date'] ?? dayKey,
+          isWorkoutDay: dayData['isWorkoutDay'] ?? false,
+          isStrengthDay: dayData['isStrengthDay'] ?? false,
+          targetCalories: dayData['targetCalories'] ?? 0,
+          targetProtein: dayData['targetProtein'] ?? 0,
+          breakfast: _parseMealItem(dayData['breakfast']),
+          lunch: _parseMealItem(dayData['lunch']),
+          dinner: _parseMealItem(dayData['dinner']),
+          snacks: (dayData['snacks'] as List? ?? [])
+              .map((s) => _parseMealItem(s))
+              .where((m) => m != null)
+              .cast<AiMealItem>()
+              .toList(),
+          totalCalories: dayData['totalCalories'] ?? 0,
+          totalProtein: dayData['totalProtein'] ?? 0,
+          totalCarbs: dayData['totalCarbs'] ?? 0,
+          totalFat: dayData['totalFat'] ?? 0,
+          dayNote: dayData['dayNote'],
+        );
+      }
+
+      return AiWeeklyMealPlanResult(
+        monday: parseDay('monday'),
+        tuesday: parseDay('tuesday'),
+        wednesday: parseDay('wednesday'),
+        thursday: parseDay('thursday'),
+        friday: parseDay('friday'),
+        saturday: parseDay('saturday'),
+        sunday: parseDay('sunday'),
+        totalCalories: weeklyTotals['totalCalories'] ?? 0,
+        totalProtein: weeklyTotals['totalProtein'] ?? 0,
+        totalCarbs: weeklyTotals['totalCarbs'] ?? 0,
+        totalFat: weeklyTotals['totalFat'] ?? 0,
+        averageDailyCalories: (weeklyTotals['averageDaily'] as Map<String, dynamic>?)?['calories'] ?? 0,
+        averageDailyProtein: (weeklyTotals['averageDaily'] as Map<String, dynamic>?)?['protein'] ?? 0,
+        coachingNote: data['coachingNote'] ?? '',
+        coachingNoteEn: data['coachingNoteEn'] ?? '',
+        fitScore: data['fitScore'] ?? 0,
+        hydrationGoal: data['hydrationGoal'] ?? '2.5L',
+        isAiGenerated: true,
+      );
+    } catch (e) {
+      _talker.warning('Failed to parse weekly meal plan response: $e');
+      return AiWeeklyMealPlanResult.fallback();
+    }
+  }
+
+  AiMealItem? _parseMealItem(dynamic mealData) {
+    if (mealData == null) return null;
+    final data = mealData as Map<String, dynamic>;
+
+    return AiMealItem(
+      name: data['name'] ?? '',
+      nameEn: data['nameEn'] ?? '',
+      calories: data['calories'] ?? 0,
+      protein: data['protein'] ?? 0,
+      carbs: data['carbs'] ?? 0,
+      fat: data['fat'] ?? 0,
+      servingSize: data['servingSize'] ?? '',
+      timing: data['timing'],
+      notes: data['notes'],
+    );
+  }
+
+  DietAwareWorkoutResult _parseDietAwareWorkoutResponse(String text) {
+    final data = _extractJson(text);
+    if (data == null) return DietAwareWorkoutResult.fallback();
+
+    try {
+      return DietAwareWorkoutResult(
+        recommendedWorkout: data['recommendedWorkout'] ?? 'Moderate Activity',
+        recommendedWorkoutId: data['recommendedWorkoutId'],
+        intensity: data['intensity'] ?? 3,
+        estimatedCaloriesBurn: data['estimatedCaloriesBurn'] ?? 200,
+        reasoning: data['reasoning'] ?? 'Based on your current nutrition and recovery data.',
+        reasoningAr: data['reasoningAr'],
+        warnings: List<String>.from(data['warnings'] ?? []),
+        alternativeIfTired: data['alternativeIfTired'],
+        nutritionInsight: data['nutritionInsight'],
+        recoveryInsight: data['recoveryInsight'],
+        isAiGenerated: true,
+        confidence: data['confidence'] ?? 70,
+      );
+    } catch (e) {
+      _talker.warning('Failed to parse diet-aware workout response: $e');
+      return DietAwareWorkoutResult.fallback();
+    }
+  }
+
+  @override
+  Future<DietAwareWorkoutResult> getHealthOnlyWorkoutRecommendation({
+    int? recoveryScore,
+    double? strainScore,
+    double? sleepHours,
+    int? sleepQuality,
+    int? hrv,
+    int? restingHR,
+    int workoutsThisWeek = 0,
+    List<String> constraints = const [],
+    String language = 'en',
+  }) async {
+    try {
+      final prompt = GeminiPrompts.buildHealthOnlyWorkoutPrompt(
+        recoveryScore: recoveryScore,
+        strainScore: strainScore,
+        sleepHours: sleepHours,
+        sleepQuality: sleepQuality,
+        hrv: hrv,
+        restingHR: restingHR,
+        workoutsThisWeek: workoutsThisWeek,
+        constraints: constraints,
+        language: language,
+      );
+
+      final response = await _model.generateContent([Content.text(prompt)]);
+      final text = response.text ?? '';
+
+      return _parseHealthOnlyWorkoutResponse(text);
+    } catch (e, st) {
+      _talker.error('Failed to generate health-only workout recommendation', e, st);
+      return DietAwareWorkoutResult.healthOnlyFallback(
+        recoveryScore: recoveryScore,
+        strainScore: strainScore,
+        sleepHours: sleepHours,
+      );
+    }
+  }
+
+  DietAwareWorkoutResult _parseHealthOnlyWorkoutResponse(String text) {
+    final data = _extractJson(text);
+    if (data == null) return DietAwareWorkoutResult.healthOnlyFallback();
+
+    try {
+      return DietAwareWorkoutResult(
+        recommendedWorkout: data['recommendedWorkout'] ?? 'Moderate Activity',
+        recommendedWorkoutId: data['recommendedWorkoutId'],
+        intensity: data['intensity'] ?? 3,
+        estimatedCaloriesBurn: data['estimatedCaloriesBurn'] ?? 200,
+        reasoning: data['reasoning'] ?? 'Based on your recovery and health data.',
+        reasoningAr: data['reasoningAr'],
+        warnings: List<String>.from(data['warnings'] ?? []),
+        alternativeIfTired: data['alternativeIfTired'],
+        nutritionInsight: null, // No nutrition data available
+        recoveryInsight: data['recoveryInsight'],
+        isAiGenerated: true,
+        confidence: data['confidence'] ?? 70,
+      );
+    } catch (e) {
+      _talker.warning('Failed to parse health-only workout response: $e');
+      return DietAwareWorkoutResult.healthOnlyFallback();
+    }
+  }
+
+  @override
+  Future<AiWeeklyWorkoutPlanResult> generateWeeklyWorkoutPlan({
+    required int targetWorkoutDays,
+    List<String> fitnessGoals = const ['strength', 'fitness'],
+    List<String> availableEquipment = const ['full_gym'],
+    int? recoveryScore,
+    double? strainScore,
+    List<String> constraints = const [],
+    List<String> preferredWorkoutTypes = const [],
+    int? mealPlanCalories,
+    String language = 'ar',
+  }) async {
+    try {
+      // Check if initialized
+      if (!_isInitialized || _apiKey.isEmpty) {
+        throw Exception('Gemini API not initialized. Please check your GEMINI_API_KEY in .env file.');
+      }
+
+      final prompt = GeminiPrompts.buildWeeklyWorkoutPlanPrompt(
+        targetWorkoutDays: targetWorkoutDays,
+        fitnessGoals: fitnessGoals,
+        availableEquipment: availableEquipment,
+        recoveryScore: recoveryScore,
+        strainScore: strainScore,
+        constraints: constraints,
+        preferredWorkoutTypes: preferredWorkoutTypes,
+        mealPlanCalories: mealPlanCalories,
+        language: language,
+      );
+
+      // Use model with higher token output for 7-day plan with exercises
+      final weeklyModel = GenerativeModel(
+        model: 'gemini-2.0-flash',
+        apiKey: _apiKey,
+        generationConfig: GenerationConfig(
+          temperature: 0.7,
+          topK: 40,
+          topP: 0.95,
+          maxOutputTokens: 8192, // Higher limit for detailed workout plan
+        ),
+      );
+
+      final response = await weeklyModel.generateContent([Content.text(prompt)]);
+      final text = response.text ?? '';
+
+      return _parseWeeklyWorkoutPlanResponse(text);
+    } catch (e, st) {
+      _talker.error('Failed to generate weekly workout plan', e, st);
+      return AiWeeklyWorkoutPlanResult.fallback();
+    }
+  }
+
+  AiWeeklyWorkoutPlanResult _parseWeeklyWorkoutPlanResponse(String text) {
+    final data = _extractJson(text);
+    if (data == null) return AiWeeklyWorkoutPlanResult.fallback();
+
+    try {
+      final weeklyPlan = data['weeklyPlan'] as Map<String, dynamic>? ?? {};
+      final weeklyTotals = data['weeklyTotals'] as Map<String, dynamic>? ?? {};
+
+      // Parse each day's workout plan
+      AiDayWorkoutPlan? parseDay(String dayKey) {
+        final dayData = weeklyPlan[dayKey] as Map<String, dynamic>?;
+        if (dayData == null) return null;
+
+        final isRestDay = dayData['isRestDay'] == true;
+
+        return AiDayWorkoutPlan(
+          workoutName: dayData['workoutName'] ?? (isRestDay ? 'Rest Day' : 'Workout'),
+          workoutNameAr: dayData['workoutNameAr'] ?? (isRestDay ? 'يوم راحة' : 'تمرين'),
+          category: dayData['category'] ?? (isRestDay ? 'rest' : 'strength'),
+          estimatedMinutes: dayData['estimatedMinutes'] ?? 0,
+          estimatedCaloriesBurn: dayData['estimatedCaloriesBurn'] ?? 0,
+          suggestedIntensity: dayData['suggestedIntensity'] ?? 3,
+          isRestDay: isRestDay,
+          targetMuscleGroups: List<String>.from(dayData['targetMuscleGroups'] ?? []),
+          equipment: List<String>.from(dayData['equipment'] ?? []),
+          description: dayData['description'],
+          descriptionAr: dayData['descriptionAr'],
+          timeOfDay: dayData['timeOfDay'],
+          timeOfDayAr: dayData['timeOfDayAr'],
+          warmup: _parseExerciseList(dayData['warmup']),
+          exercises: _parseExerciseList(dayData['exercises']),
+          cooldown: _parseExerciseList(dayData['cooldown']),
+          notes: dayData['notes'],
+        );
+      }
+
+      return AiWeeklyWorkoutPlanResult(
+        monday: parseDay('monday'),
+        tuesday: parseDay('tuesday'),
+        wednesday: parseDay('wednesday'),
+        thursday: parseDay('thursday'),
+        friday: parseDay('friday'),
+        saturday: parseDay('saturday'),
+        sunday: parseDay('sunday'),
+        totalWorkoutMinutes: weeklyTotals['totalWorkoutMinutes'] ?? 0,
+        totalCaloriesBurn: weeklyTotals['totalCaloriesBurn'] ?? 0,
+        workoutDaysCount: weeklyTotals['workoutDaysCount'] ?? 0,
+        strengthDaysCount: weeklyTotals['strengthDaysCount'] ?? 0,
+        cardioDaysCount: weeklyTotals['cardioDaysCount'] ?? 0,
+        coachingNote: data['coachingNote'] ?? '',
+        coachingNoteAr: data['coachingNoteAr'] ?? '',
+        fitnessGoals: List<String>.from(data['fitnessGoals'] ?? []),
+        equipmentRequired: List<String>.from(data['equipmentRequired'] ?? []),
+        isAiGenerated: true,
+      );
+    } catch (e) {
+      _talker.warning('Failed to parse weekly workout plan response: $e');
+      return AiWeeklyWorkoutPlanResult.fallback();
+    }
+  }
+
+  List<AiExerciseItem> _parseExerciseList(dynamic exerciseListData) {
+    if (exerciseListData == null) return [];
+    final list = exerciseListData as List? ?? [];
+
+    return list.map((e) {
+      final data = e as Map<String, dynamic>;
+      return AiExerciseItem(
+        exerciseId: data['exerciseId'],
+        name: data['name'] ?? '',
+        nameAr: data['nameAr'],
+        muscleGroup: data['muscleGroup'],
+        sets: data['sets'] ?? 3,
+        reps: data['reps'],
+        durationSeconds: data['durationSeconds'],
+        restSeconds: data['restSeconds'] ?? 60,
+        suggestedWeight: data['suggestedWeight'],
+        suggestedWeightAr: data['suggestedWeightAr'],
+        instruction: data['instruction'],
+        instructionAr: data['instructionAr'],
+        order: data['order'] ?? 0,
+        isSupersetWithNext: data['isSupersetWithNext'] ?? false,
+        equipment: data['equipment'],
+      );
+    }).toList();
+  }
+
+  // ============ GENERIC CONTENT GENERATION ============
+
+  @override
+  Future<String?> generateContent(String prompt) async {
+    try {
+      _talker.debug('Generating content with prompt (${prompt.length} chars)');
+      final response = await _model.generateContent([Content.text(prompt)]);
+      final text = response.text;
+      _talker.debug('Generated content: ${text?.length ?? 0} chars');
+      return text;
+    } catch (e) {
+      _talker.error('Error generating content: $e');
+      return null;
+    }
+  }
 }
 
 // Result Classes
@@ -2145,5 +2674,431 @@ class AiDailyMealPlanResult {
     if (dinner != null) meals.add(dinner!);
     meals.addAll(snacks);
     return meals;
+  }
+}
+
+/// Result from diet-aware workout recommendation
+class DietAwareWorkoutResult {
+  final String recommendedWorkout;
+  final String? recommendedWorkoutId;
+  final int intensity; // 1-5
+  final int estimatedCaloriesBurn;
+  final String reasoning;
+  final String? reasoningAr; // Arabic reasoning
+  final List<String> warnings;
+  final String? alternativeIfTired;
+  final String? nutritionInsight;
+  final String? recoveryInsight;
+  final bool isAiGenerated;
+  final int confidence;
+
+  DietAwareWorkoutResult({
+    required this.recommendedWorkout,
+    this.recommendedWorkoutId,
+    required this.intensity,
+    required this.estimatedCaloriesBurn,
+    required this.reasoning,
+    this.reasoningAr,
+    this.warnings = const [],
+    this.alternativeIfTired,
+    this.nutritionInsight,
+    this.recoveryInsight,
+    this.isAiGenerated = true,
+    this.confidence = 70,
+  });
+
+  factory DietAwareWorkoutResult.fallback() => DietAwareWorkoutResult(
+        recommendedWorkout: 'Moderate Activity',
+        intensity: 3,
+        estimatedCaloriesBurn: 200,
+        reasoning: 'Unable to generate personalized recommendation. Consider a moderate workout based on how you feel.',
+        isAiGenerated: false,
+        confidence: 0,
+      );
+
+  /// Fallback for health-only recommendations (no nutrition data)
+  factory DietAwareWorkoutResult.healthOnlyFallback({
+    int? recoveryScore,
+    double? strainScore,
+    double? sleepHours,
+  }) {
+    String workout;
+    int intensity;
+    String reasoning;
+    List<String> warnings = [];
+
+    // Rule-based logic using health data only
+    if (recoveryScore != null && recoveryScore < 40) {
+      workout = 'Rest Day / Light Stretch';
+      intensity = 1;
+      reasoning = 'Your recovery score is low ($recoveryScore%). Focus on rest and recovery today.';
+      warnings.add('Low recovery - prioritize rest');
+    } else if (sleepHours != null && sleepHours < 6) {
+      workout = 'Light Walk (20 min)';
+      intensity = 2;
+      reasoning = 'You didn\'t get enough sleep (${sleepHours.toStringAsFixed(1)}h). Keep activity light.';
+      warnings.add('Poor sleep - avoid intense exercise');
+    } else if (strainScore != null && strainScore > 15) {
+      workout = 'Active Recovery / Yoga';
+      intensity = 2;
+      reasoning = 'Your strain is already high (${strainScore.toStringAsFixed(1)}). Focus on recovery.';
+      warnings.add('High strain - avoid adding more intensity');
+    } else if (recoveryScore != null && recoveryScore >= 70) {
+      workout = 'Strength Training';
+      intensity = 4;
+      reasoning = 'Your recovery is excellent ($recoveryScore%). Great day for strength training!';
+    } else if (recoveryScore != null && recoveryScore >= 50) {
+      workout = 'Moderate Cardio (30 min)';
+      intensity = 3;
+      reasoning = 'Good recovery ($recoveryScore%). A moderate workout would be beneficial.';
+    } else {
+      workout = 'Light Activity (20 min)';
+      intensity = 2;
+      reasoning = 'Based on your health data, keep activity moderate today.';
+    }
+
+    return DietAwareWorkoutResult(
+      recommendedWorkout: workout,
+      intensity: intensity,
+      estimatedCaloriesBurn: intensity * 80,
+      reasoning: reasoning,
+      warnings: warnings,
+      alternativeIfTired: '10-minute stretch routine',
+      recoveryInsight: recoveryScore != null
+          ? 'Recovery: $recoveryScore%'
+          : null,
+      isAiGenerated: false,
+      confidence: 50,
+    );
+  }
+}
+
+// ============ WEEKLY MEAL PLAN RESULT CLASSES ============
+
+/// Result from AI weekly meal plan generation
+class AiWeeklyMealPlanResult {
+  final AiDayMealPlan? monday;
+  final AiDayMealPlan? tuesday;
+  final AiDayMealPlan? wednesday;
+  final AiDayMealPlan? thursday;
+  final AiDayMealPlan? friday;
+  final AiDayMealPlan? saturday;
+  final AiDayMealPlan? sunday;
+  final int totalCalories;
+  final int totalProtein;
+  final int totalCarbs;
+  final int totalFat;
+  final int averageDailyCalories;
+  final int averageDailyProtein;
+  final String coachingNote;
+  final String coachingNoteEn;
+  final int fitScore;
+  final String hydrationGoal;
+  final bool isAiGenerated;
+
+  AiWeeklyMealPlanResult({
+    this.monday,
+    this.tuesday,
+    this.wednesday,
+    this.thursday,
+    this.friday,
+    this.saturday,
+    this.sunday,
+    required this.totalCalories,
+    required this.totalProtein,
+    required this.totalCarbs,
+    required this.totalFat,
+    required this.averageDailyCalories,
+    required this.averageDailyProtein,
+    required this.coachingNote,
+    required this.coachingNoteEn,
+    required this.fitScore,
+    required this.hydrationGoal,
+    this.isAiGenerated = true,
+  });
+
+  /// Get all days as a list
+  List<AiDayMealPlan?> get days => [
+        monday,
+        tuesday,
+        wednesday,
+        thursday,
+        friday,
+        saturday,
+        sunday,
+      ];
+
+  /// Get day by index (0 = Monday)
+  AiDayMealPlan? getDay(int index) {
+    if (index < 0 || index > 6) return null;
+    return days[index];
+  }
+
+  /// Count of planned days
+  int get plannedDaysCount => days.where((d) => d != null).length;
+
+  factory AiWeeklyMealPlanResult.fallback() => AiWeeklyMealPlanResult(
+        totalCalories: 0,
+        totalProtein: 0,
+        totalCarbs: 0,
+        totalFat: 0,
+        averageDailyCalories: 0,
+        averageDailyProtein: 0,
+        coachingNote: 'تعذر إنشاء خطة الوجبات. حاول مرة أخرى.',
+        coachingNoteEn: 'Unable to generate meal plan. Please try again.',
+        fitScore: 0,
+        hydrationGoal: '2.5L',
+        isAiGenerated: false,
+      );
+}
+
+/// A single day's meal plan in the weekly plan
+class AiDayMealPlan {
+  final String dayName;
+  final bool isWorkoutDay;
+  final bool isStrengthDay;
+  final int targetCalories;
+  final int targetProtein;
+  final AiMealItem? breakfast;
+  final AiMealItem? lunch;
+  final AiMealItem? dinner;
+  final List<AiMealItem> snacks;
+  final int totalCalories;
+  final int totalProtein;
+  final int totalCarbs;
+  final int totalFat;
+  final String? dayNote;
+
+  AiDayMealPlan({
+    required this.dayName,
+    this.isWorkoutDay = false,
+    this.isStrengthDay = false,
+    required this.targetCalories,
+    required this.targetProtein,
+    this.breakfast,
+    this.lunch,
+    this.dinner,
+    this.snacks = const [],
+    required this.totalCalories,
+    required this.totalProtein,
+    required this.totalCarbs,
+    required this.totalFat,
+    this.dayNote,
+  });
+}
+
+/// A single meal item in the meal plan
+class AiMealItem {
+  final String name;
+  final String nameEn;
+  final int calories;
+  final int protein;
+  final int carbs;
+  final int fat;
+  final String servingSize;
+  final String? timing;
+  final String? notes;
+
+  AiMealItem({
+    required this.name,
+    required this.nameEn,
+    required this.calories,
+    required this.protein,
+    required this.carbs,
+    required this.fat,
+    required this.servingSize,
+    this.timing,
+    this.notes,
+  });
+}
+
+// ============ WEEKLY WORKOUT PLAN RESULT CLASSES ============
+
+/// Result from AI weekly workout plan generation
+class AiWeeklyWorkoutPlanResult {
+  final AiDayWorkoutPlan? monday;
+  final AiDayWorkoutPlan? tuesday;
+  final AiDayWorkoutPlan? wednesday;
+  final AiDayWorkoutPlan? thursday;
+  final AiDayWorkoutPlan? friday;
+  final AiDayWorkoutPlan? saturday;
+  final AiDayWorkoutPlan? sunday;
+  final int totalWorkoutMinutes;
+  final int totalCaloriesBurn;
+  final int workoutDaysCount;
+  final int strengthDaysCount;
+  final int cardioDaysCount;
+  final String coachingNote;
+  final String coachingNoteAr;
+  final List<String> fitnessGoals;
+  final List<String> equipmentRequired;
+  final bool isAiGenerated;
+
+  AiWeeklyWorkoutPlanResult({
+    this.monday,
+    this.tuesday,
+    this.wednesday,
+    this.thursday,
+    this.friday,
+    this.saturday,
+    this.sunday,
+    required this.totalWorkoutMinutes,
+    required this.totalCaloriesBurn,
+    required this.workoutDaysCount,
+    required this.strengthDaysCount,
+    required this.cardioDaysCount,
+    required this.coachingNote,
+    required this.coachingNoteAr,
+    this.fitnessGoals = const [],
+    this.equipmentRequired = const [],
+    this.isAiGenerated = true,
+  });
+
+  /// Get all days as a list
+  List<AiDayWorkoutPlan?> get days => [
+        monday,
+        tuesday,
+        wednesday,
+        thursday,
+        friday,
+        saturday,
+        sunday,
+      ];
+
+  /// Get day by index (0 = Monday)
+  AiDayWorkoutPlan? getDay(int index) {
+    if (index < 0 || index > 6) return null;
+    return days[index];
+  }
+
+  /// Count of planned workout days (non-rest)
+  int get plannedDaysCount =>
+      days.where((d) => d != null && !d.isRestDay).length;
+
+  /// Count of rest days
+  int get restDaysCount =>
+      days.where((d) => d == null || d.isRestDay).length;
+
+  factory AiWeeklyWorkoutPlanResult.fallback() => AiWeeklyWorkoutPlanResult(
+        totalWorkoutMinutes: 0,
+        totalCaloriesBurn: 0,
+        workoutDaysCount: 0,
+        strengthDaysCount: 0,
+        cardioDaysCount: 0,
+        coachingNote: 'Unable to generate workout plan. Please try again.',
+        coachingNoteAr: 'تعذر إنشاء خطة التمارين. حاول مرة أخرى.',
+        isAiGenerated: false,
+      );
+}
+
+/// A single day's workout plan
+class AiDayWorkoutPlan {
+  final String workoutName;
+  final String? workoutNameAr;
+  final String category; // strength, cardio, hiit, flexibility, rest
+  final int estimatedMinutes;
+  final int estimatedCaloriesBurn;
+  final int suggestedIntensity; // 1-5
+  final bool isRestDay;
+  final List<String> targetMuscleGroups;
+  final List<String> equipment;
+  final String? description;
+  final String? descriptionAr;
+  final String? timeOfDay;
+  final String? timeOfDayAr;
+  final List<AiExerciseItem> warmup;
+  final List<AiExerciseItem> exercises;
+  final List<AiExerciseItem> cooldown;
+  final String? notes;
+
+  AiDayWorkoutPlan({
+    required this.workoutName,
+    this.workoutNameAr,
+    required this.category,
+    required this.estimatedMinutes,
+    required this.estimatedCaloriesBurn,
+    this.suggestedIntensity = 3,
+    this.isRestDay = false,
+    this.targetMuscleGroups = const [],
+    this.equipment = const [],
+    this.description,
+    this.descriptionAr,
+    this.timeOfDay,
+    this.timeOfDayAr,
+    this.warmup = const [],
+    this.exercises = const [],
+    this.cooldown = const [],
+    this.notes,
+  });
+
+  /// Total number of exercises (including warmup and cooldown)
+  int get totalExerciseCount =>
+      warmup.length + exercises.length + cooldown.length;
+
+  /// Is this a strength training workout?
+  bool get isStrengthTraining => category.toLowerCase() == 'strength';
+
+  /// Is this a cardio workout?
+  bool get isCardio => category.toLowerCase() == 'cardio';
+
+  /// Is this HIIT?
+  bool get isHiit => category.toLowerCase() == 'hiit';
+
+  /// Is this a flexibility workout?
+  bool get isFlexibility =>
+      category.toLowerCase() == 'flexibility' ||
+      category.toLowerCase() == 'recovery';
+}
+
+/// A single exercise in the workout plan
+class AiExerciseItem {
+  final String? exerciseId; // Links to exercise library
+  final String name;
+  final String? nameAr;
+  final String? muscleGroup;
+  final int sets;
+  final int? reps;
+  final int? durationSeconds;
+  final int restSeconds;
+  final String? suggestedWeight;
+  final String? suggestedWeightAr;
+  final String? instruction;
+  final String? instructionAr;
+  final int order;
+  final bool isSupersetWithNext;
+  final String? equipment;
+
+  AiExerciseItem({
+    this.exerciseId,
+    required this.name,
+    this.nameAr,
+    this.muscleGroup,
+    required this.sets,
+    this.reps,
+    this.durationSeconds,
+    this.restSeconds = 60,
+    this.suggestedWeight,
+    this.suggestedWeightAr,
+    this.instruction,
+    this.instructionAr,
+    this.order = 0,
+    this.isSupersetWithNext = false,
+    this.equipment,
+  });
+
+  /// Is this a timed exercise?
+  bool get isTimed => durationSeconds != null && durationSeconds! > 0;
+
+  /// Is this a rep-based exercise?
+  bool get isRepBased => reps != null && reps! > 0;
+
+  /// Display format for sets/reps (e.g., "4x10" or "3x30s")
+  String get setsRepsDisplay {
+    if (isTimed) {
+      return '${sets}x${durationSeconds}s';
+    } else if (isRepBased) {
+      return '${sets}x$reps';
+    }
+    return '$sets sets';
   }
 }
