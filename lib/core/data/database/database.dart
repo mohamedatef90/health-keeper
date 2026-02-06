@@ -59,12 +59,19 @@ part 'database.g.dart';
   DailyOutlooks,
   DayReviews,
   AllTimeStats,
+  // Multi-Agent System tables (v9)
+  ProtocolRules,
+  AgentContexts,
+  AgentConversations,
+  HealthMetricsTimeSeries,
+  MealsDetailed,
+  WorkoutsDetailed,
 ])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 8;
+  int get schemaVersion => 9;
 
   @override
   MigrationStrategy get migration {
@@ -122,6 +129,15 @@ class AppDatabase extends _$AppDatabase {
           await m.createTable(dailyOutlooks);
           await m.createTable(dayReviews);
           await m.createTable(allTimeStats);
+        }
+        // Migration from v8 to v9: Add Multi-Agent System tables
+        if (from < 9) {
+          await m.createTable(protocolRules);
+          await m.createTable(agentContexts);
+          await m.createTable(agentConversations);
+          await m.createTable(healthMetricsTimeSeries);
+          await m.createTable(mealsDetailed);
+          await m.createTable(workoutsDetailed);
         }
       },
       beforeOpen: (details) async {
@@ -1313,6 +1329,296 @@ class AppDatabase extends _$AppDatabase {
         ),
       );
     }
+  }
+
+  // ============================================================================
+  // MULTI-AGENT SYSTEM OPERATIONS (v9)
+  // ============================================================================
+
+  // ============================================================================
+  // PROTOCOL RULES OPERATIONS
+  // ============================================================================
+
+  Future<List<ProtocolRule>> getAllProtocolRules({bool activeOnly = true}) {
+    final query = select(protocolRules);
+    if (activeOnly) {
+      query.where((p) => p.isActive.equals(true));
+    }
+    query.orderBy([(p) => OrderingTerm.asc(p.category), (p) => OrderingTerm.asc(p.name)]);
+    return query.get();
+  }
+
+  Future<List<ProtocolRule>> getProtocolRulesByCategory(String category) {
+    return (select(protocolRules)
+          ..where((p) => p.category.equals(category))
+          ..where((p) => p.isActive.equals(true))
+          ..orderBy([(p) => OrderingTerm.asc(p.name)]))
+        .get();
+  }
+
+  Future<ProtocolRule?> getProtocolRule(String id) {
+    return (select(protocolRules)..where((p) => p.id.equals(id)))
+        .getSingleOrNull();
+  }
+
+  Future<ProtocolRule?> getProtocolRuleByName(String name) {
+    return (select(protocolRules)..where((p) => p.name.equals(name)))
+        .getSingleOrNull();
+  }
+
+  Future<int> insertProtocolRule(ProtocolRulesCompanion rule) {
+    return into(protocolRules).insert(rule);
+  }
+
+  Future<bool> updateProtocolRule(ProtocolRulesCompanion rule) {
+    return update(protocolRules).replace(rule);
+  }
+
+  Future<void> deactivateProtocolRule(String id) {
+    return (update(protocolRules)..where((p) => p.id.equals(id))).write(
+      ProtocolRulesCompanion(
+        isActive: const Value(false),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  Future<int> deleteProtocolRule(String id) {
+    return (delete(protocolRules)..where((p) => p.id.equals(id))).go();
+  }
+
+  // ============================================================================
+  // AGENT CONTEXTS OPERATIONS
+  // ============================================================================
+
+  Future<AgentContext?> getAgentContextForDate(DateTime date) {
+    final startOfDay = DateTime(date.year, date.month, date.day);
+    final endOfDay = startOfDay.add(const Duration(days: 1));
+
+    return (select(agentContexts)
+          ..where((c) => c.date.isBiggerOrEqualValue(startOfDay))
+          ..where((c) => c.date.isSmallerThanValue(endOfDay)))
+        .getSingleOrNull();
+  }
+
+  Future<AgentContext?> getTodayAgentContext() {
+    return getAgentContextForDate(DateTime.now());
+  }
+
+  Future<List<AgentContext>> getAgentContextsInRange(DateTime start, DateTime end) {
+    return (select(agentContexts)
+          ..where((c) => c.date.isBiggerOrEqualValue(start))
+          ..where((c) => c.date.isSmallerThanValue(end))
+          ..orderBy([(c) => OrderingTerm.desc(c.date)]))
+        .get();
+  }
+
+  Future<int> insertAgentContext(AgentContextsCompanion context) {
+    return into(agentContexts).insert(context);
+  }
+
+  Future<bool> updateAgentContext(AgentContextsCompanion context) {
+    return update(agentContexts).replace(context);
+  }
+
+  /// Upsert (update or insert) agent context for a specific date
+  Future<void> upsertAgentContext(AgentContextsCompanion context) async {
+    // Try to find existing context for this date
+    final existing = await getAgentContextForDate(context.date.value);
+    
+    if (existing != null) {
+      // Update existing
+      await (update(agentContexts)..where((c) => c.id.equals(existing.id)))
+          .write(context);
+    } else {
+      // Insert new
+      await into(agentContexts).insert(context);
+    }
+  }
+
+  // ============================================================================
+  // AGENT CONVERSATIONS OPERATIONS
+  // ============================================================================
+
+  Future<List<AgentConversation>> getAgentConversations({
+    required String agentType,
+    int limit = 50,
+  }) {
+    return (select(agentConversations)
+          ..where((c) => c.agentType.equals(agentType))
+          ..orderBy([(c) => OrderingTerm.desc(c.timestamp)])
+          ..limit(limit))
+        .get();
+  }
+
+  Future<List<AgentConversation>> getAllConversations({int limit = 100}) {
+    return (select(agentConversations)
+          ..orderBy([(c) => OrderingTerm.desc(c.timestamp)])
+          ..limit(limit))
+        .get();
+  }
+
+  Future<AgentConversation?> getAgentConversation(String id) {
+    return (select(agentConversations)..where((c) => c.id.equals(id)))
+        .getSingleOrNull();
+  }
+
+  Future<int> insertAgentConversation(AgentConversationsCompanion conversation) {
+    return into(agentConversations).insert(conversation);
+  }
+
+  Future<bool> updateAgentConversation(AgentConversationsCompanion conversation) {
+    return update(agentConversations).replace(conversation);
+  }
+
+  Future<void> markAsActedUpon(String id) {
+    return (update(agentConversations)..where((c) => c.id.equals(id))).write(
+      const AgentConversationsCompanion(
+        wasActedUpon: Value(true),
+      ),
+    );
+  }
+
+  Future<int> deleteAgentConversation(String id) {
+    return (delete(agentConversations)..where((c) => c.id.equals(id))).go();
+  }
+
+  Future<void> deleteAgentConversationsByType(String agentType) {
+    return (delete(agentConversations)..where((c) => c.agentType.equals(agentType))).go();
+  }
+
+  Stream<List<AgentConversation>> watchAgentConversations(String agentType) {
+    return (select(agentConversations)
+          ..where((c) => c.agentType.equals(agentType))
+          ..orderBy([(c) => OrderingTerm.asc(c.timestamp)]))
+        .watch();
+  }
+
+  // ============================================================================
+  // HEALTH METRICS TIME SERIES OPERATIONS
+  // ============================================================================
+
+  Future<List<HealthMetricsTimeSeriesData>> getHealthMetrics({
+    required String metricType,
+    required DateTime start,
+    required DateTime end,
+  }) {
+    return (select(healthMetricsTimeSeries)
+          ..where((m) => m.metricType.equals(metricType))
+          ..where((m) => m.timestamp.isBiggerOrEqualValue(start))
+          ..where((m) => m.timestamp.isSmallerThanValue(end))
+          ..orderBy([(m) => OrderingTerm.desc(m.timestamp)]))
+        .get();
+  }
+
+  Future<List<HealthMetricsTimeSeriesData>> getRecentHealthMetrics({
+    required String metricType,
+    int hours = 24,
+  }) {
+    final since = DateTime.now().subtract(Duration(hours: hours));
+    return getHealthMetrics(
+      metricType: metricType,
+      start: since,
+      end: DateTime.now(),
+    );
+  }
+
+  Future<HealthMetricsTimeSeriesData?> getLatestHealthMetric(String metricType) {
+    return (select(healthMetricsTimeSeries)
+          ..where((m) => m.metricType.equals(metricType))
+          ..orderBy([(m) => OrderingTerm.desc(m.timestamp)])
+          ..limit(1))
+        .getSingleOrNull();
+  }
+
+  Future<int> insertHealthMetric(HealthMetricsTimeSeriesCompanion metric) {
+    return into(healthMetricsTimeSeries).insert(metric);
+  }
+
+  Future<int> insertHealthMetricsBatch(List<HealthMetricsTimeSeriesCompanion> metrics) async {
+    return await batch((batch) {
+      batch.insertAll(healthMetricsTimeSeries, metrics);
+    });
+  }
+
+  // ============================================================================
+  // MEALS DETAILED OPERATIONS
+  // ============================================================================
+
+  Future<List<MealsDetailedData>> getMealsForDate(DateTime date) {
+    final startOfDay = DateTime(date.year, date.month, date.day);
+    final endOfDay = startOfDay.add(const Duration(days: 1));
+
+    return (select(mealsDetailed)
+          ..where((m) => m.consumedAt.isBiggerOrEqualValue(startOfDay))
+          ..where((m) => m.consumedAt.isSmallerThanValue(endOfDay))
+          ..orderBy([(m) => OrderingTerm.asc(m.consumedAt)]))
+        .get();
+  }
+
+  Future<List<MealsDetailedData>> getMealsInRange(DateTime start, DateTime end) {
+    return (select(mealsDetailed)
+          ..where((m) => m.consumedAt.isBiggerOrEqualValue(start))
+          ..where((m) => m.consumedAt.isSmallerThanValue(end))
+          ..orderBy([(m) => OrderingTerm.desc(m.consumedAt)]))
+        .get();
+  }
+
+  Future<MealsDetailedData?> getMealDetailed(String id) {
+    return (select(mealsDetailed)..where((m) => m.id.equals(id)))
+        .getSingleOrNull();
+  }
+
+  Future<int> insertMealDetailed(MealsDetailedCompanion meal) {
+    return into(mealsDetailed).insert(meal);
+  }
+
+  Future<bool> updateMealDetailed(MealsDetailedCompanion meal) {
+    return update(mealsDetailed).replace(meal);
+  }
+
+  Future<int> deleteMealDetailed(String id) {
+    return (delete(mealsDetailed)..where((m) => m.id.equals(id))).go();
+  }
+
+  // ============================================================================
+  // WORKOUTS DETAILED OPERATIONS
+  // ============================================================================
+
+  Future<List<WorkoutsDetailedData>> getWorkoutsForDate(DateTime date) {
+    final startOfDay = DateTime(date.year, date.month, date.day);
+    final endOfDay = startOfDay.add(const Duration(days: 1));
+
+    return (select(workoutsDetailed)
+          ..where((w) => w.startTime.isBiggerOrEqualValue(startOfDay))
+          ..where((w) => w.startTime.isSmallerThanValue(endOfDay))
+          ..orderBy([(w) => OrderingTerm.asc(w.startTime)]))
+        .get();
+  }
+
+  Future<List<WorkoutsDetailedData>> getWorkoutsInRange(DateTime start, DateTime end) {
+    return (select(workoutsDetailed)
+          ..where((w) => w.startTime.isBiggerOrEqualValue(start))
+          ..where((w) => w.startTime.isSmallerThanValue(end))
+          ..orderBy([(w) => OrderingTerm.desc(w.startTime)]))
+        .get();
+  }
+
+  Future<WorkoutsDetailedData?> getWorkoutDetailed(String id) {
+    return (select(workoutsDetailed)..where((w) => w.id.equals(id)))
+        .getSingleOrNull();
+  }
+
+  Future<int> insertWorkoutDetailed(WorkoutsDetailedCompanion workout) {
+    return into(workoutsDetailed).insert(workout);
+  }
+
+  Future<bool> updateWorkoutDetailed(WorkoutsDetailedCompanion workout) {
+    return update(workoutsDetailed).replace(workout);
+  }
+
+  Future<int> deleteWorkoutDetailed(String id) {
+    return (delete(workoutsDetailed)..where((w) => w.id.equals(id))).go();
   }
 }
 

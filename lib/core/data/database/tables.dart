@@ -1221,3 +1221,268 @@ class AllTimeStats extends Table {
   @override
   String get tableName => 'all_time_stats';
 }
+
+// ============================================================================
+// MULTI-AGENT SYSTEM TABLES (v9)
+// ============================================================================
+
+/// Protocol Rules Table - stores static user rules and schedules
+/// This is the "Protocol Layer" - foundational rules that rarely change
+class ProtocolRules extends Table {
+  TextColumn get id => text()();
+
+  /// Category: medication, activity, nutrition, health, sleep
+  TextColumn get category => text()();
+
+  /// Rule name: mounjaro, football, eating-window, etc.
+  TextColumn get name => text()();
+
+  /// Schedule (JSON): {"days": ["monday", "friday"], "time": "09:00", "duration": "90min"}
+  TextColumn get scheduleJson => text()();
+
+  /// Rules details (JSON): {"dosage": "2.5mg", "sideEffects": [...], "notes": "..."}
+  TextColumn get rulesJson => text()();
+
+  /// Whether this rule is currently active
+  BoolColumn get isActive => boolean().withDefault(const Constant(true))();
+
+  /// Timestamps
+  DateTimeColumn get createdAt => dateTime()();
+  DateTimeColumn get updatedAt => dateTime().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+
+  @override
+  String get tableName => 'protocol_rules';
+}
+
+/// Agent Contexts Table - stores daily aggregated context for agents
+/// This is the "Daily Context Layer" - snapshot of today's data
+class AgentContexts extends Table {
+  TextColumn get id => text()();
+
+  /// Date key (YYYY-MM-DD)
+  DateTimeColumn get date => dateTime()();
+
+  // Sleep Data (from previous night)
+  RealColumn get sleepDuration => real().nullable()(); // hours
+  IntColumn get sleepQuality => integer().nullable()(); // 0-100 score
+  RealColumn get sleepHRV => real().nullable()(); // ms
+  TextColumn get sleepStagesJson => text().nullable()(); // JSON: {"deep": 1.5, "rem": 2.0, "light": 4.0}
+
+  // Body Metrics (morning)
+  RealColumn get weight => real().nullable()(); // kg
+  RealColumn get bodyFat => real().nullable()(); // %
+  RealColumn get leanMass => real().nullable()(); // kg
+
+  // Activity (throughout day)
+  IntColumn get steps => integer().nullable()();
+  RealColumn get activeCalories => real().nullable()(); // kcal
+  IntColumn get exerciseMinutes => integer().nullable()();
+
+  // Nutrition (throughout day)
+  RealColumn get caloriesConsumed => real().nullable()(); // kcal
+  RealColumn get protein => real().nullable()(); // g
+  RealColumn get carbs => real().nullable()(); // g
+  RealColumn get fats => real().nullable()(); // g
+  RealColumn get water => real().nullable()(); // ml
+
+  // Recovery (from Whoop or calculated)
+  IntColumn get recoveryScore => integer().nullable()(); // 0-100
+  IntColumn get strain => integer().nullable()(); // 0-21
+  IntColumn get restingHeartRate => integer().nullable()(); // bpm
+
+  // Medication tracking
+  BoolColumn get mounjaroTaken => boolean().withDefault(const Constant(false))();
+
+  // AI-generated summary (English + Arabic)
+  TextColumn get contextSummary => text().nullable()();
+  TextColumn get contextSummaryAr => text().nullable()();
+
+  /// Last sync timestamp
+  DateTimeColumn get syncedAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+
+  @override
+  String get tableName => 'agent_contexts';
+}
+
+/// Agent Conversations Table - stores conversation history per agent
+/// This is the "Agent Memory Layer" - per-agent conversation history
+class AgentConversations extends Table {
+  TextColumn get id => text()();
+
+  /// Agent type: fitness, nutrition, health, general
+  TextColumn get agentType => text()();
+
+  /// Message role: user, assistant, system
+  TextColumn get role => text()();
+
+  /// Message content
+  TextColumn get content => text()();
+
+  /// Snapshot of context at time of message (JSON)
+  /// References AgentContexts.id for that day
+  TextColumn get contextId => text().nullable()();
+
+  /// Lightweight context snapshot (JSON) for quick access
+  TextColumn get contextSnapshotJson => text().nullable()();
+
+  /// Action type: workout, meal, medication, insight, general
+  TextColumn get actionType => text().nullable()();
+
+  /// Whether user acted on this recommendation
+  BoolColumn get wasActedUpon => boolean().nullable()();
+
+  /// Timestamp
+  DateTimeColumn get timestamp => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+
+  @override
+  String get tableName => 'agent_conversations';
+}
+
+/// Health Metrics Time Series Table - stores continuous health metrics
+/// Complements RecoveryMetricsTable with more granular time-series data
+class HealthMetricsTimeSeries extends Table {
+  TextColumn get id => text()();
+
+  /// Timestamp of measurement
+  DateTimeColumn get timestamp => dateTime()();
+
+  /// Metric type: heart-rate, hrv, blood-pressure-systolic, blood-pressure-diastolic, glucose, spo2, respiratory-rate
+  TextColumn get metricType => text()();
+
+  /// Measurement value
+  RealColumn get value => real()();
+
+  /// Unit: bpm, ms, mmHg, mg/dL, %, breaths/min
+  TextColumn get unit => text()();
+
+  /// Context: resting, exercise, sleeping, waking, post-meal, fasting
+  TextColumn get context => text().nullable()();
+
+  /// Data source: apple-health, whoop, manual, smart-scale
+  TextColumn get source => text()();
+
+  /// Sync timestamp
+  DateTimeColumn get syncedAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+
+  @override
+  String get tableName => 'health_metrics_time_series';
+}
+
+/// Meals Detailed Table - enhanced meal tracking for agents
+/// Extends existing MealLogs with agent-specific fields
+class MealsDetailed extends Table {
+  TextColumn get id => text()();
+
+  /// When meal was consumed
+  DateTimeColumn get consumedAt => dateTime()();
+
+  /// Meal type: breakfast, lunch, dinner, snack, pre-workout, post-workout
+  TextColumn get mealType => text()();
+
+  /// Meal name/description
+  TextColumn get name => text()();
+
+  // Nutrition (required)
+  RealColumn get calories => real()();
+  RealColumn get protein => real()();
+  RealColumn get carbs => real()();
+  RealColumn get fats => real()();
+
+  // Optional nutrition
+  RealColumn get fiber => real().nullable()();
+  RealColumn get sugar => real().nullable()();
+  RealColumn get sodium => real().nullable()();
+
+  /// Ingredients (JSON array)
+  TextColumn get ingredientsJson => text().nullable()();
+
+  /// Notes
+  TextColumn get notes => text().nullable()();
+
+  /// Source: manual, apple-health, ai-logged, meal-template
+  TextColumn get source => text().nullable()();
+
+  /// Whether user can edit this meal
+  BoolColumn get isEditable => boolean().withDefault(const Constant(true))();
+
+  /// Photo URI if available
+  TextColumn get photoUri => text().nullable()();
+
+  /// Link to original MealLog if migrated
+  TextColumn get mealLogId => text().nullable()();
+
+  /// Timestamps
+  DateTimeColumn get createdAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+
+  @override
+  String get tableName => 'meals_detailed';
+}
+
+/// Workouts Detailed Table - enhanced workout tracking for agents
+/// Extends existing WorkoutLogs with agent-specific fields
+class WorkoutsDetailed extends Table {
+  TextColumn get id => text()();
+
+  /// Workout time
+  DateTimeColumn get startTime => dateTime()();
+  DateTimeColumn get endTime => dateTime()();
+
+  /// Type: strength, cardio, football, walking, swimming, cycling, hiit, yoga, other
+  TextColumn get workoutType => text()();
+
+  /// Workout name
+  TextColumn get name => text()();
+
+  /// Duration in minutes
+  IntColumn get duration => integer()();
+
+  // Metrics
+  RealColumn get caloriesBurned => real().nullable()();
+  IntColumn get avgHeartRate => integer().nullable()();
+  IntColumn get maxHeartRate => integer().nullable()();
+
+  /// Intensity: low, medium, high, max
+  TextColumn get intensity => text().nullable()();
+
+  /// Exercises (JSON array): [{"name": "Bench Press", "sets": 3, "reps": 10, "weight": 80}]
+  TextColumn get exercisesJson => text().nullable()();
+
+  /// Notes
+  TextColumn get notes => text().nullable()();
+
+  /// Source: manual, apple-health, whoop, gym-session
+  TextColumn get source => text().nullable()();
+
+  /// Whether user can edit
+  BoolColumn get isEditable => boolean().withDefault(const Constant(true))();
+
+  /// Link to original WorkoutLog if migrated
+  TextColumn get workoutLogId => text().nullable()();
+
+  /// Link to GymSession if applicable
+  TextColumn get gymSessionId => text().nullable()();
+
+  /// Timestamps
+  DateTimeColumn get createdAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+
+  @override
+  String get tableName => 'workouts_detailed';
+}

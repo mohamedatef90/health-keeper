@@ -9,6 +9,7 @@ import '../services/healthkit_service.dart';
 import '../services/notification_service.dart';
 import '../services/photo_service.dart';
 import '../services/workout_detection_service.dart';
+import '../agents/seed_on_first_launch.dart';
 
 // Re-export strain and recovery providers for convenience
 export 'strain_provider.dart';
@@ -64,6 +65,10 @@ final photoServiceProvider = Provider<PhotoService>((ref) {
 final appInitializationProvider = FutureProvider<bool>((ref) async {
   final notificationService = ref.read(notificationServiceProvider);
   await notificationService.initialize();
+
+  // Seed protocol rules on first launch
+  final db = ref.read(databaseProvider);
+  await FirstLaunchSeeder.seedIfNeeded(db);
 
   // Additional initialization as needed
   return true;
