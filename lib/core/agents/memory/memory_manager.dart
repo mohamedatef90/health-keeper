@@ -199,7 +199,7 @@ class MemoryManager {
     } else {
       // Insert new
       final companion = AgentContextsCompanion.insert(
-        id: Value(_uuid.v4()),
+        id: _uuid.v4(),
         date: startOfDay,
         weight: updates.containsKey('weight')
             ? Value(updates['weight'] as double)
@@ -244,7 +244,7 @@ class MemoryManager {
         // Insert into MealsDetailed table
         await db.insertMealDetailed(
           MealsDetailedCompanion.insert(
-            id: Value(_uuid.v4()),
+            id: _uuid.v4(),
             consumedAt: data['consumed_at'] ?? DateTime.now(),
             mealType: data['meal_type'] ?? 'snack',
             name: data['name'] ?? 'Unknown meal',
@@ -262,7 +262,7 @@ class MemoryManager {
         // Insert into WorkoutsDetailed table
         await db.insertWorkoutDetailed(
           WorkoutsDetailedCompanion.insert(
-            id: Value(_uuid.v4()),
+            id: _uuid.v4(),
             startTime: data['start_time'] ?? DateTime.now(),
             endTime: data['end_time'] ?? DateTime.now(),
             workoutType: data['workout_type'] ?? 'other',

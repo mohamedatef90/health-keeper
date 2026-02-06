@@ -31,16 +31,16 @@ class UserProtocol {
   Future<void> _seedMounjaroSchedule() async {
     await db.insertProtocolRule(
       ProtocolRulesCompanion.insert(
-        id: Value(_uuid.v4()),
+        id: _uuid.v4(),
         category: 'medication',
         name: 'mounjaro',
-        
+
         // ✏️ Schedule: املا المواعيد
         scheduleJson: jsonEncode({
           'days': ['monday', 'wednesday', 'friday'], // أيام الأسبوع
           'time': '09:00', // الوقت (24h format)
         }),
-        
+
         // ✏️ Rules: املا التفاصيل
         rulesJson: jsonEncode({
           'dosage': '2.5mg', // الجرعة
@@ -51,8 +51,8 @@ class UserProtocol {
           ], // الآثار الجانبية المحتملة
           'notes': 'Take before breakfast. Monitor glucose levels.', // ملاحظات
         }),
-        
-        isActive: true,
+
+        isActive: Value(true),
         createdAt: DateTime.now(),
       ),
     );
@@ -65,25 +65,25 @@ class UserProtocol {
   Future<void> _seedFootballSchedule() async {
     await db.insertProtocolRule(
       ProtocolRulesCompanion.insert(
-        id: Value(_uuid.v4()),
+        id: _uuid.v4(),
         category: 'activity',
         name: 'football',
-        
+
         // ✏️ Schedule: املا المواعيد
         scheduleJson: jsonEncode({
           'days': ['monday'], // أيام الماتش
           'time': '18:00', // الوقت
           'duration': '90min', // المدة
         }),
-        
+
         // ✏️ Rules: املا التفاصيل
         rulesJson: jsonEncode({
           'intensity': 'high', // الشدة
           'recovery': '24h', // وقت الاستشفاء المطلوب
           'notes': 'Weekly match - high strain activity. Avoid intense workouts day before.', // ملاحظات
         }),
-        
-        isActive: true,
+
+        isActive: Value(true),
         createdAt: DateTime.now(),
       ),
     );
@@ -96,16 +96,16 @@ class UserProtocol {
   Future<void> _seedEatingWindow() async {
     await db.insertProtocolRule(
       ProtocolRulesCompanion.insert(
-        id: Value(_uuid.v4()),
+        id: _uuid.v4(),
         category: 'nutrition',
         name: 'eating-window',
-        
+
         // ✏️ Schedule: املا المواعيد
         scheduleJson: jsonEncode({
           'start': '11:00', // بداية الأكل
           'end': '20:00', // نهاية الأكل
         }),
-        
+
         // ✏️ Rules: املا الأهداف
         rulesJson: jsonEncode({
           'fastingHours': 15, // ساعات الصيام
@@ -115,8 +115,8 @@ class UserProtocol {
           'targetFats': 70, // الدهون المستهدفة (جرام)
           'notes': '9-hour eating window. Focus on high protein, moderate carbs.', // ملاحظات
         }),
-        
-        isActive: true,
+
+        isActive: Value(true),
         createdAt: DateTime.now(),
       ),
     );
@@ -130,21 +130,21 @@ class UserProtocol {
   Future<void> _seedSleepSchedule() async {
     await db.insertProtocolRule(
       ProtocolRulesCompanion.insert(
-        id: Value(_uuid.v4()),
+        id: _uuid.v4(),
         category: 'sleep',
         name: 'sleep-schedule',
-        
+
         scheduleJson: jsonEncode({
           'bedtime': '23:00',
           'wake_time': '07:00',
         }),
-        
+
         rulesJson: jsonEncode({
           'targetDuration': 8.0, // hours
           'notes': 'Aim for 8 hours. Track HRV for quality.',
         }),
-        
-        isActive: true,
+
+        isActive: Value(true),
         createdAt: DateTime.now(),
       ),
     );
@@ -154,21 +154,21 @@ class UserProtocol {
   Future<void> _seedGymSchedule() async {
     await db.insertProtocolRule(
       ProtocolRulesCompanion.insert(
-        id: Value(_uuid.v4()),
+        id: _uuid.v4(),
         category: 'activity',
         name: 'gym-schedule',
-        
+
         scheduleJson: jsonEncode({
           'days': ['sunday', 'tuesday', 'thursday', 'saturday'],
           'time': '17:00',
         }),
-        
+
         rulesJson: jsonEncode({
           'types': ['strength', 'hypertrophy'],
           'notes': '4x per week strength training.',
         }),
-        
-        isActive: true,
+
+        isActive: Value(true),
         createdAt: DateTime.now(),
       ),
     );

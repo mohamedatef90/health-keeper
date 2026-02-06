@@ -1,3 +1,4 @@
+import 'package:drift/drift.dart';
 import 'package:health_keeper/core/data/database/database.dart';
 import 'package:health_keeper/core/agents/context/agent_context.dart';
 
@@ -8,7 +9,7 @@ class SharedContextBuilder {
   SharedContextBuilder(this.db);
 
   /// Build context for a specific agent type
-  Future<AgentContext> buildContext({
+  Future<AgentContextState> buildContext({
     required String agentType,
     DateTime? targetDate,
     int conversationLimit = 50,
@@ -30,15 +31,15 @@ class SharedContextBuilder {
       _loadWeeklyTrends(date),
     ]);
 
-    return AgentContext(
+    return AgentContextState(
       protocolRules: results[0] as List<ProtocolRule>,
-      today: results[1] as AgentContextData?,
-      yesterday: results[2] as AgentContextData?,
+      today: results[1] as AgentContext?,
+      yesterday: results[2] as AgentContext?,
       recentMeals: results[3] as List<MealsDetailedData>,
       recentWorkouts: results[4] as List<WorkoutsDetailedData>,
-      latestHRV: (results[5] as Map<String, HealthMetricsTimeSeriesData?>)['hrv'],
-      latestHeartRate: (results[5] as Map<String, HealthMetricsTimeSeriesData?>)['heart_rate'],
-      latestBloodPressure: (results[5] as Map<String, HealthMetricsTimeSeriesData?>)['blood_pressure'],
+      latestHRV: (results[5] as Map<String, HealthMetricsTimeSery?>)['hrv'],
+      latestHeartRate: (results[5] as Map<String, HealthMetricsTimeSery?>)['heart_rate'],
+      latestBloodPressure: (results[5] as Map<String, HealthMetricsTimeSery?>)['blood_pressure'],
       todayRecovery: (results[6] as Map<String, dynamic>)['recovery'] as RecoveryScore?,
       todayStrain: (results[6] as Map<String, dynamic>)['strain'] as StrainScore?,
       conversationHistory: results[7] as List<AgentConversation>,
@@ -52,7 +53,7 @@ class SharedContextBuilder {
   }
 
   /// Load daily context for a specific date
-  Future<AgentContextData?> _loadDailyContext(DateTime date) async {
+  Future<AgentContext?> _loadDailyContext(DateTime date) async {
     return await db.getAgentContextForDate(date);
   }
 
@@ -69,7 +70,7 @@ class SharedContextBuilder {
   }
 
   /// Load latest health metrics (HRV, HR, BP)
-  Future<Map<String, HealthMetricsTimeSeriesData?>> _loadLatestHealthMetrics() async {
+  Future<Map<String, HealthMetricsTimeSery?>> _loadLatestHealthMetrics() async {
     return {
       'hrv': await db.getLatestHealthMetric('hrv'),
       'heart_rate': await db.getLatestHealthMetric('heart-rate'),

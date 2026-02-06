@@ -157,7 +157,7 @@ class AppTheme {
       iconButtonTheme: IconButtonThemeData(
         style: IconButton.styleFrom(
           foregroundColor: AppColors.textSecondary,
-          highlightColor: AppColors.primary.withOpacity(0.1),
+          highlightColor: AppColors.primary.withValues(alpha: 0.1),
         ),
       ),
 
@@ -226,7 +226,7 @@ class AppTheme {
       // Navigation Bar (Material 3)
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: AppColors.surfaceDark,
-        indicatorColor: AppColors.primary.withOpacity(0.2),
+        indicatorColor: AppColors.primary.withValues(alpha: 0.2),
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         height: 72,
@@ -256,8 +256,8 @@ class AppTheme {
       chipTheme: ChipThemeData(
         backgroundColor: AppColors.cardDark,
         disabledColor: AppColors.cardDark,
-        selectedColor: AppColors.primary.withOpacity(0.2),
-        secondarySelectedColor: AppColors.primary.withOpacity(0.2),
+        selectedColor: AppColors.primary.withValues(alpha: 0.2),
+        secondarySelectedColor: AppColors.primary.withValues(alpha: 0.2),
         padding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.sm,
           vertical: AppSpacing.xs,
@@ -329,7 +329,7 @@ class AppTheme {
         activeTrackColor: AppColors.primary,
         inactiveTrackColor: AppColors.borderDark,
         thumbColor: AppColors.primary,
-        overlayColor: AppColors.primary.withOpacity(0.2),
+        overlayColor: AppColors.primary.withValues(alpha: 0.2),
         valueIndicatorColor: AppColors.primary,
         valueIndicatorTextStyle: AppTypography.labelSmall.copyWith(
           color: AppColors.textPrimary,
@@ -346,7 +346,7 @@ class AppTheme {
         }),
         trackColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
-            return AppColors.primary.withOpacity(0.4);
+            return AppColors.primary.withValues(alpha: 0.4);
           }
           return AppColors.borderDark;
         }),
@@ -381,7 +381,7 @@ class AppTheme {
       // List Tile
       listTileTheme: ListTileThemeData(
         tileColor: Colors.transparent,
-        selectedTileColor: AppColors.primary.withOpacity(0.1),
+        selectedTileColor: AppColors.primary.withValues(alpha: 0.1),
         iconColor: AppColors.textSecondary,
         textColor: AppColors.textPrimary,
         contentPadding: const EdgeInsets.symmetric(
@@ -461,7 +461,7 @@ class AppTheme {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
           side: BorderSide(
-            color: AppColors.backgroundDark.withOpacity(0.1),
+            color: AppColors.backgroundDark.withValues(alpha: 0.1),
             width: 1,
           ),
         ),
@@ -506,11 +506,11 @@ class AppTheme {
         fillColor: AppColors.surfaceLight,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-          borderSide: BorderSide(color: AppColors.backgroundDark.withOpacity(0.1)),
+          borderSide: BorderSide(color: AppColors.backgroundDark.withValues(alpha: 0.1)),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
-          borderSide: BorderSide(color: AppColors.backgroundDark.withOpacity(0.1)),
+          borderSide: BorderSide(color: AppColors.backgroundDark.withValues(alpha: 0.1)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
@@ -528,12 +528,12 @@ class AppTheme {
       bottomNavigationBarTheme: BottomNavigationBarThemeData(
         backgroundColor: AppColors.surfaceLight,
         selectedItemColor: AppColors.primary,
-        unselectedItemColor: AppColors.backgroundDark.withOpacity(0.5),
+        unselectedItemColor: AppColors.backgroundDark.withValues(alpha: 0.5),
         type: BottomNavigationBarType.fixed,
         elevation: 8,
       ),
       dividerTheme: DividerThemeData(
-        color: AppColors.backgroundDark.withOpacity(0.1),
+        color: AppColors.backgroundDark.withValues(alpha: 0.1),
         thickness: 1,
         space: AppSpacing.md,
       ),
@@ -549,10 +549,10 @@ class AppTheme {
         titleSmall: AppTypography.titleSmall.copyWith(color: AppColors.backgroundDark),
         bodyLarge: AppTypography.bodyLarge.copyWith(color: AppColors.backgroundDark),
         bodyMedium: AppTypography.bodyMedium.copyWith(color: AppColors.backgroundDark),
-        bodySmall: AppTypography.bodySmall.copyWith(color: AppColors.backgroundDark.withOpacity(0.7)),
+        bodySmall: AppTypography.bodySmall.copyWith(color: AppColors.backgroundDark.withValues(alpha: 0.7)),
         labelLarge: AppTypography.labelLarge.copyWith(color: AppColors.backgroundDark),
         labelMedium: AppTypography.labelMedium.copyWith(color: AppColors.backgroundDark),
-        labelSmall: AppTypography.labelSmall.copyWith(color: AppColors.backgroundDark.withOpacity(0.7)),
+        labelSmall: AppTypography.labelSmall.copyWith(color: AppColors.backgroundDark.withValues(alpha: 0.7)),
       ),
     );
   }

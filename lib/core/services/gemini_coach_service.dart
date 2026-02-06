@@ -10,6 +10,9 @@ import 'gemini_prompts.dart';
 
 /// AI-powered coaching service using Google Gemini 2.5 API
 abstract class GeminiCoachService {
+  /// Whether the service is initialized with a valid API key
+  bool get isInitialized;
+
   /// Generate daily brief with recovery score and coaching text
   Future<DailyBriefResult> generateDailyBrief(DailyBriefContext context);
 
@@ -271,6 +274,10 @@ class GeminiCoachServiceImpl implements GeminiCoachService {
 
   late final String _apiKey;
   bool _isInitialized = false;
+
+  /// Whether the service is initialized with a valid API key
+  @override
+  bool get isInitialized => _isInitialized;
 
   GeminiCoachServiceImpl({required Talker talker}) : _talker = talker {
     _apiKey = dotenv.env['GEMINI_API_KEY'] ?? '';

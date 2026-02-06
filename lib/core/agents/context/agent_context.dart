@@ -1,22 +1,22 @@
 import 'package:health_keeper/core/data/database/database.dart';
 
 /// Complete context passed to any agent for generating responses
-class AgentContext {
+class AgentContextState {
   // Protocol Layer - Static Rules
   final List<ProtocolRule> protocolRules;
 
   // Daily Context - Today & Yesterday
-  final AgentContextData? today;
-  final AgentContextData? yesterday;
+  final AgentContext? today;
+  final AgentContext? yesterday;
 
   // Detailed Data
   final List<MealsDetailedData> recentMeals;
   final List<WorkoutsDetailedData> recentWorkouts;
 
   // Health Metrics
-  final HealthMetricsTimeSeriesData? latestHRV;
-  final HealthMetricsTimeSeriesData? latestHeartRate;
-  final HealthMetricsTimeSeriesData? latestBloodPressure;
+  final HealthMetricsTimeSery? latestHRV;
+  final HealthMetricsTimeSery? latestHeartRate;
+  final HealthMetricsTimeSery? latestBloodPressure;
 
   // Recovery Data
   final RecoveryScore? todayRecovery;
@@ -28,7 +28,7 @@ class AgentContext {
   // Weekly Trends
   final WeeklyTrends? weeklyTrends;
 
-  AgentContext({
+  AgentContextState({
     required this.protocolRules,
     this.today,
     this.yesterday,

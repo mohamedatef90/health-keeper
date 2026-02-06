@@ -1498,7 +1498,7 @@ class AppDatabase extends _$AppDatabase {
   // HEALTH METRICS TIME SERIES OPERATIONS
   // ============================================================================
 
-  Future<List<HealthMetricsTimeSeriesData>> getHealthMetrics({
+  Future<List<HealthMetricsTimeSery>> getHealthMetrics({
     required String metricType,
     required DateTime start,
     required DateTime end,
@@ -1511,7 +1511,7 @@ class AppDatabase extends _$AppDatabase {
         .get();
   }
 
-  Future<List<HealthMetricsTimeSeriesData>> getRecentHealthMetrics({
+  Future<List<HealthMetricsTimeSery>> getRecentHealthMetrics({
     required String metricType,
     int hours = 24,
   }) {
@@ -1523,7 +1523,7 @@ class AppDatabase extends _$AppDatabase {
     );
   }
 
-  Future<HealthMetricsTimeSeriesData?> getLatestHealthMetric(String metricType) {
+  Future<HealthMetricsTimeSery?> getLatestHealthMetric(String metricType) {
     return (select(healthMetricsTimeSeries)
           ..where((m) => m.metricType.equals(metricType))
           ..orderBy([(m) => OrderingTerm.desc(m.timestamp)])
@@ -1536,9 +1536,10 @@ class AppDatabase extends _$AppDatabase {
   }
 
   Future<int> insertHealthMetricsBatch(List<HealthMetricsTimeSeriesCompanion> metrics) async {
-    return await batch((batch) {
+    await batch((batch) {
       batch.insertAll(healthMetricsTimeSeries, metrics);
     });
+    return metrics.length;
   }
 
   // ============================================================================

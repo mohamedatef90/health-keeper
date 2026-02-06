@@ -93,7 +93,7 @@ $conversationHistory
 
   /// Save conversation to database
   Future<void> _saveConversation({
-    required AgentContext context,
+    required AgentContextState context,
     required String userMessage,
     required String assistantResponse,
   }) async {
@@ -103,7 +103,7 @@ $conversationHistory
     // Save user message
     await db.insertAgentConversation(
       AgentConversationsCompanion.insert(
-        id: Value(_uuid.v4()),
+        id: _uuid.v4(),
         agentType: agentType.id,
         role: 'user',
         content: userMessage,
@@ -115,7 +115,7 @@ $conversationHistory
     // Save assistant response
     await db.insertAgentConversation(
       AgentConversationsCompanion.insert(
-        id: Value(_uuid.v4()),
+        id: _uuid.v4(),
         agentType: agentType.id,
         role: 'assistant',
         content: assistantResponse,

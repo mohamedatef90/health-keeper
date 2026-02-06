@@ -97,7 +97,7 @@ void main() {
     test('Can route and get response (integration)', () async {
       // This test will call real Gemini API if GEMINI_API_KEY is set
       // Skip if no API key
-      if (!geminiService._isInitialized) {
+      if (!geminiService.isInitialized) {
         print('⚠️  Skipping integration test - no GEMINI_API_KEY');
         return;
       }
