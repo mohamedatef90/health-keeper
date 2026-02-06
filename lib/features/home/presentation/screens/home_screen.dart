@@ -17,6 +17,11 @@ import '../widgets/daily_brief_card.dart';
 import '../widgets/connect_health_banner.dart';
 import '../../../health_monitor/presentation/widgets/proactive_nudge_card.dart';
 import '../../../coach_chat/presentation/widgets/coach_chat_button.dart';
+import '../widgets/daily_summary_card.dart';
+import '../widgets/voice_command_widget.dart';
+import '../widgets/agent_suggestions_widget.dart';
+import '../widgets/weight_trend_chart.dart';
+import '../widgets/photo_progress_card.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -116,6 +121,21 @@ class HomeScreen extends ConsumerWidget {
 
               // Connect Health Banner (shows when permissions not granted)
               const ConnectHealthBanner(),
+
+              // ✨ NEW: Daily Summary Card
+              const DailySummaryCard(),
+
+              // ✨ NEW: Voice Command Widget
+              const VoiceCommandWidget(),
+
+              // ✨ NEW: Agent Suggestions
+              const AgentSuggestionsWidget(),
+
+              // ✨ NEW: Weight Trend Chart
+              const WeightTrendChart(),
+
+              // ✨ NEW: Photo Progress Card
+              const PhotoProgressCard(),
 
               // Dual Score Rings (Strain + Recovery)
               _buildScoreRings(context, strainAsync, recoveryAsync),

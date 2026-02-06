@@ -15,6 +15,7 @@ import '../features/progress_photos/presentation/screens/progress_photos_screen.
 import '../features/settings/presentation/screens/settings_screen.dart';
 import '../features/settings/presentation/screens/data_control_screen.dart';
 import '../features/settings/presentation/screens/autonomy_settings_screen.dart';
+import '../features/settings/presentation/screens/protocol_settings_screen.dart';
 import '../features/profile/presentation/screens/edit_profile_screen.dart';
 import '../features/journal/presentation/screens/journal_screen.dart';
 import '../features/insights/presentation/screens/health_insights_screen.dart';
@@ -23,6 +24,7 @@ import '../features/coach/presentation/screens/coach_screen.dart';
 import '../features/nutrition/presentation/screens/weekly_meal_plan_screen.dart';
 import '../features/planning/presentation/screens/master_plan_screen.dart';
 import '../features/coach/presentation/screens/weekly_workout_plan_screen.dart';
+import '../features/coach_chat/presentation/modern_agent_chat_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
@@ -115,6 +117,13 @@ final routerProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => const AutonomySettingsScreen(),
           ),
 
+          // Protocol Settings (NEW!)
+          GoRoute(
+            path: 'protocol-settings',
+            name: 'protocol-settings',
+            builder: (context, state) => const ProtocolSettingsScreen(),
+          ),
+
           // Edit Profile
           GoRoute(
             path: 'edit-profile',
@@ -148,6 +157,16 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: 'coach',
             name: 'coach',
             builder: (context, state) => const CoachScreen(),
+          ),
+
+          // Modern Agent Chat (NEW!)
+          GoRoute(
+            path: 'agent-chat',
+            name: 'agent-chat',
+            builder: (context, state) {
+              final contextTag = state.uri.queryParameters['context'];
+              return ModernAgentChatScreen(contextTag: contextTag);
+            },
           ),
 
           // Weekly Meal Plan
