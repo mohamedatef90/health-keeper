@@ -217,7 +217,7 @@ class _DataControlScreenState extends ConsumerState<DataControlScreen> {
         title: const Text('Data & Privacy'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/settings'),
+          onPressed: () => context.go('/profile/settings'),
         ),
       ),
       body: ListView(

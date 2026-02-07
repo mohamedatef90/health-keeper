@@ -1,4 +1,7 @@
+import 'dart:convert';
+
 import 'package:health_keeper/core/data/database/database.dart';
+import 'package:health_keeper/core/agents/context/agent_context.dart';
 import 'package:health_keeper/core/agents/services/base_agent.dart';
 import 'package:health_keeper/core/agents/router/agent_router.dart';
 import 'package:health_keeper/core/services/gemini_coach_service.dart';
@@ -31,7 +34,9 @@ class GeneralAgent extends BaseAgent {
 ''';
 
   @override
-  String buildSystemPrompt({String language = 'ar'}) {
+  String buildSystemPrompt({String language = 'ar', AgentContextState? context}) {
+    final protocolSummary = _buildProtocolSummary(context);
+
     return '''
 # أنت: General Orchestrator Agent 🤖
 
@@ -50,62 +55,16 @@ $personality
 - أسئلة متعددة المجالات: "خطة أكل ورياضة"
 - ترحيب وتعارف
 
+## بروتوكول المستخدم الحالي:
+$protocolSummary
+
 ## القواعد:
 - اجمع بيانات من كل المجالات (sleep, meals, workouts, recovery, medication)
-- قدم خطط متكاملة ومنطقية
+- قدم خطط متكاملة ومنطقية بناءً على البروتوكول الحالي
 - راعي الأولويات: صحة → استشفاء → تمارين → تغذية
 - اديله نظرة Big Picture (أسبوعية أو شهرية)
 
 ## أمثلة ردود:
-
-**سؤال:** "إيه خطتي للأسبوع؟"
-**رد جيد:** "**خطة الأسبوع (5-11 فبراير):**
-
-🏋️ **التمارين:**
-- الأحد: Upper body (45 دقيقة)
-- الثلاثاء: Cardio + Core (30 دقيقة)
-- الخميس: Lower body (45 دقيقة)
-- السبت: Full body (40 دقيقة)
-- **الاتنين: ماتش كورة 6م ⚽ (راحة قبلها)**
-
-🍽️ **التغذية:**
-- السعرات: 1900/يوم (deficit 300)
-- البروتين: 150جم/يوم
-- Eating window: 11ص - 8م
-- يوم الماتش: زود الكارب (energy)
-
-💉 **موونجارو:**
-- الاثنين، الأربعاء، الجمعة (9 صباحاً)
-- خفف التمارين أول يومين بعد الحقنة
-
-😴 **النوم:**
-- 7-8 ساعات/ليلة
-- نام بدري ليلة الأحد (قبل الماتش)
-
-🎯 **الهدف:** نزول 0.5 كيلو الأسبوع ده (75.3 → 74.8)"
-
-**سؤال:** "how am I doing this month?"
-**رد جيد:** "**February Progress (so far):**
-
-📊 **Overall:** 8/10 - You're doing great!
-
-✅ **Wins:**
-• Consistent workouts: 12/15 days
-• Protein target: 145g avg (close to 150g goal)
-• Sleep: 7.3h avg (good)
-• Weight: -1.2 kg (75.3 → 74.1) ✨
-
-⚠️ **Areas to improve:**
-• HRV trending down (62 → 55) - need more recovery
-• Missed 2 Mounjaro doses (reschedule?)
-• Water intake inconsistent
-
-💡 **Next steps:**
-1. Add 1 rest day per week
-2. Set Mounjaro reminders
-3. Track water (aim 2.5L/day)
-
-Keep it up! 💪"
 
 **سؤال:** "مرحبا"
 **رد جيد:** "أهلاً! أنا الوكيل العام 🤖
@@ -126,9 +85,47 @@ Keep it up! 💪"
 ## ملاحظات:
 - استخدم تنسيق منظم (sections، bullets، emoji)
 - اديله أرقام واضحة (averages، targets، progress)
+- استخدم بيانات البروتوكول الحقيقية في الخطط
 - لو السؤال متخصص جداً، وجّهه للوكيل المناسب:
   "السؤال ده أحسن حد يجاوب عليه وكيل اللياقة 🏋️"
 - خليك positive لكن realistic
 ''';
+  }
+
+  String _buildProtocolSummary(AgentContextState? context) {
+    if (context == null || context.protocolRules.isEmpty) {
+      return 'لا يوجد بروتوكول محدد حالياً';
+    }
+
+    final buffer = StringBuffer();
+    for (final rule in context.protocolRules) {
+      try {
+        final schedule = json.decode(rule.scheduleJson) as Map<String, dynamic>;
+        buffer.writeln('- **${rule.name}** (${rule.category}):');
+
+        if (schedule['days'] != null) {
+          buffer.writeln('  الأيام: ${(schedule['days'] as List).join("، ")}');
+        }
+        if (schedule['time'] != null) {
+          buffer.writeln('  الوقت: ${schedule['time']}');
+        }
+        if (schedule['startTime'] != null && schedule['endTime'] != null) {
+          buffer.writeln('  من ${schedule['startTime']} إلى ${schedule['endTime']}');
+        }
+        if (schedule['dose'] != null) {
+          buffer.writeln('  الجرعة: ${schedule['dose']}');
+        }
+        if (schedule['calories'] != null) {
+          buffer.writeln('  السعرات: ${schedule['calories']} kcal');
+        }
+        if (schedule['protein'] != null) {
+          buffer.writeln('  البروتين: ${schedule['protein']}g');
+        }
+      } catch (_) {
+        buffer.writeln('- **${rule.name}**: ${rule.scheduleJson}');
+      }
+    }
+
+    return buffer.toString();
   }
 }

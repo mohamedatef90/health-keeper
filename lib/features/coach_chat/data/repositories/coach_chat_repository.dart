@@ -254,7 +254,7 @@ class CoachChatRepositoryImpl implements CoachChatRepository {
       db.ChatMessagesCompanion(
         id: Value(id),
         threadId: Value(threadId),
-        role: Value(role.name),
+        role: Value(_roleToString(role)),
         content: Value(content),
         createdAt: Value(now),
         contextTag: Value(contextTag),
@@ -317,6 +317,29 @@ class CoachChatRepositoryImpl implements CoachChatRepository {
       default:
         return MessageRole.assistant;
     }
+  }
+
+  String _roleToString(MessageRole role) {
+    switch (role) {
+      case MessageRole.user:
+        return 'user';
+      case MessageRole.assistant:
+        return 'assistant';
+      case MessageRole.system:
+        return 'system';
+    }
+  }
+}
+
+/// Convert MessageRole to string (avoids .name which may not work with freezed enums)
+String _roleToStringStatic(MessageRole role) {
+  switch (role) {
+    case MessageRole.user:
+      return 'user';
+    case MessageRole.assistant:
+      return 'assistant';
+    case MessageRole.system:
+      return 'system';
   }
 }
 
@@ -520,7 +543,7 @@ class CoachChatNotifier extends StateNotifier<CoachChatState> {
 
       // Build conversation history from recent messages
       final recentMessages = state.messages.take(10).map((msg) => {
-        'role': msg.role.name,
+        'role': _roleToStringStatic(msg.role),
         'content': msg.content,
       }).toList();
 

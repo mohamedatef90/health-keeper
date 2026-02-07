@@ -12,15 +12,29 @@ class AgentChatAdapter {
   }) : _agentFactory = agentFactory;
 
   /// Process a user message and get agent response
-  /// 
+  ///
+  /// If [forceAgentType] is provided, routes directly to that agent
+  /// instead of auto-detecting intent. Used for per-agent chats.
   /// Returns: AgentChatResponse with content, agent info, quick replies
   Future<AgentChatResponse> processMessage({
     required String message,
     String language = 'ar',
+    AgentType? forceAgentType,
   }) async {
     try {
-      // Route message to appropriate agent
-      final response = await _agentFactory.routeMessage(message);
+      // Route to forced agent or auto-detect
+      final AgentResponse response;
+      if (forceAgentType != null) {
+        final agent = _agentFactory.getAgent(forceAgentType);
+        final reply = await agent.generateResponse(userMessage: message, language: language);
+        response = AgentResponse(
+          agentType: forceAgentType,
+          agentName: agent.displayName,
+          message: reply,
+        );
+      } else {
+        response = await _agentFactory.routeMessage(message);
+      }
 
       // Generate quick replies based on agent type
       final quickReplies = _getQuickRepliesForAgent(
@@ -51,7 +65,12 @@ class AgentChatAdapter {
   }
 
   /// Get contextual greeting (on first open)
-  String getGreeting(String language) {
+  ///
+  /// If [forceAgentType] is provided, returns that agent's specific greeting.
+  String getGreeting(String language, {AgentType? forceAgentType}) {
+    if (forceAgentType != null) {
+      return AgentRouter.buildGreeting(forceAgentType);
+    }
     if (language == 'ar') {
       return '''👋 مرحباً! أنا مساعدك الصحي.
 
@@ -76,7 +95,12 @@ How can I help you today?''';
   }
 
   /// Get initial quick replies
-  List<String> getInitialQuickReplies(String language) {
+  ///
+  /// If [forceAgentType] is provided, returns that agent's specific quick replies.
+  List<String> getInitialQuickReplies(String language, {AgentType? forceAgentType}) {
+    if (forceAgentType != null) {
+      return _getQuickRepliesForAgent(forceAgentType, language);
+    }
     if (language == 'ar') {
       return [
         'إيه أحسن تمرين النهاردة؟',

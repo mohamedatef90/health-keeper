@@ -6,6 +6,8 @@ import '../../../core/ui/tokens/colors.dart';
 import '../../../core/ui/tokens/spacing.dart';
 import '../../../core/ui/tokens/typography.dart';
 import '../data/repositories/agent_coach_chat_notifier.dart';
+import '../data/repositories/coach_chat_repository.dart';
+import '../domain/entities/chat_message.dart';
 
 /// Modern Agent Chat Screen with glassmorphism and agent badges
 /// 
@@ -31,6 +33,8 @@ class _ModernAgentChatScreenState
   final FocusNode _focusNode = FocusNode();
   late AnimationController _animationController;
 
+  String? _initializedContextTag;
+
   @override
   void initState() {
     super.initState();
@@ -41,10 +45,32 @@ class _ModernAgentChatScreenState
 
     // Initialize chat on first frame
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initializeChat();
+    });
+
+    // Listen for keyboard changes to auto-scroll
+    _focusNode.addListener(() {
+      if (_focusNode.hasFocus) {
+        _scrollToBottom();
+      }
+    });
+  }
+
+  void _initializeChat() {
+    if (_initializedContextTag != widget.contextTag) {
+      _initializedContextTag = widget.contextTag;
       ref.read(agentCoachChatNotifierProvider.notifier).initChat(
             contextTag: widget.contextTag,
           );
-    });
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant ModernAgentChatScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.contextTag != widget.contextTag) {
+      _initializeChat();
+    }
   }
 
   @override
@@ -90,30 +116,55 @@ class _ModernAgentChatScreenState
 
     return Scaffold(
       backgroundColor: AppColors.backgroundDark,
+      resizeToAvoidBottomInset: true,
       appBar: _buildAppBar(),
-      body: Column(
-        children: [
-          // Messages
-          Expanded(
-            child: chatState.isLoading
-                ? _buildLoadingState()
-                : chatState.messages.isEmpty
-                    ? _buildEmptyState()
-                    : _buildMessageList(chatState),
-          ),
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            // Messages
+            Expanded(
+              child: chatState.isLoading
+                  ? _buildLoadingState()
+                  : chatState.messages.isEmpty
+                      ? _buildEmptyState()
+                      : _buildMessageList(chatState),
+            ),
 
-          // Quick replies
-          if (chatState.quickReplies.isNotEmpty && !chatState.isSending)
-            _buildQuickReplies(chatState.quickReplies),
+            // Quick replies
+            if (chatState.quickReplies.isNotEmpty && !chatState.isSending)
+              _buildQuickReplies(chatState.quickReplies),
 
-          // Input bar
-          _buildInputBar(chatState),
-        ],
+            // Input bar
+            _buildInputBar(chatState),
+          ],
+        ),
       ),
     );
   }
 
+  Map<String, dynamic> get _agentInfo {
+    final tag = widget.contextTag ?? '';
+    if (tag.startsWith('agent:')) {
+      final type = tag.replaceFirst('agent:', '');
+      switch (type) {
+        case 'fitness':
+          return {'name': 'Fitness Coach', 'emoji': '🏋️', 'color': AppColors.agentFitness};
+        case 'nutrition':
+          return {'name': 'Nutrition Coach', 'emoji': '🍽️', 'color': AppColors.agentNutrition};
+        case 'health':
+          return {'name': 'Health Advisor', 'emoji': '🩺', 'color': AppColors.agentHealth};
+        case 'general':
+          return {'name': 'General Assistant', 'emoji': '🤖', 'color': AppColors.agentGeneral};
+      }
+    }
+    return {'name': 'Smart Chat', 'emoji': '✨', 'color': AppColors.primary};
+  }
+
   PreferredSizeWidget _buildAppBar() {
+    final info = _agentInfo;
+    final agentColor = info['color'] as Color;
+
     return AppBar(
       backgroundColor: AppColors.surfaceDark.withValues(alpha: 0.9),
       elevation: 0,
@@ -126,7 +177,7 @@ class _ModernAgentChatScreenState
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  AppColors.primary.withValues(alpha: 0.1),
+                  agentColor.withValues(alpha: 0.1),
                   AppColors.surfaceDark.withValues(alpha: 0.9),
                 ],
               ),
@@ -138,29 +189,36 @@ class _ModernAgentChatScreenState
         icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
         onPressed: () => Navigator.pop(context),
       ),
-      title: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      title: Row(
         children: [
-          Text(
-            'Health Coach',
-            style: AppTypography.titleMedium.copyWith(
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          Text(
-            '4 AI Specialists',
-            style: AppTypography.bodySmall.copyWith(
-              color: AppColors.textSecondary,
-            ),
+          Text(info['emoji'] as String, style: const TextStyle(fontSize: 24)),
+          const SizedBox(width: AppSpacing.sm),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                info['name'] as String,
+                style: AppTypography.titleMedium.copyWith(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              Text(
+                'AI Specialist',
+                style: AppTypography.bodySmall.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
           ),
         ],
       ),
       actions: [
         IconButton(
-          icon: const Icon(Icons.more_vert, color: AppColors.textPrimary),
+          icon: const Icon(Icons.delete_outline, color: AppColors.textSecondary),
           onPressed: () {
-            // TODO: Show more options
+            ref.read(agentCoachChatNotifierProvider.notifier).deleteThread();
+            Navigator.pop(context);
           },
         ),
       ],
@@ -232,8 +290,8 @@ class _ModernAgentChatScreenState
     );
   }
 
-  Widget _buildMessageBubble(message) {
-    final isUser = message.role.name == 'user';
+  Widget _buildMessageBubble(dynamic message) {
+    final isUser = message.role == MessageRole.user;
     final agentInfo = _parseAgentInfo(message.contextTag);
 
     return Padding(
@@ -429,8 +487,16 @@ class _ModernAgentChatScreenState
   }
 
   Widget _buildInputBar(CoachChatState chatState) {
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
+
     return Container(
-      padding: const EdgeInsets.all(AppSpacing.md),
+      padding: EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        AppSpacing.md,
+        AppSpacing.md,
+        bottomInset > 0 ? AppSpacing.sm : bottomPadding + AppSpacing.sm,
+      ),
       decoration: BoxDecoration(
         color: AppColors.surfaceDark.withValues(alpha: 0.9),
         border: Border(

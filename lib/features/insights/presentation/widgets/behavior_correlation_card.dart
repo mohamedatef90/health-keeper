@@ -135,7 +135,6 @@ class BehaviorCorrelationCard extends StatelessWidget {
 
   Widget _buildCorrelationBar() {
     final strength = correlation.correlationStrength.abs();
-    final isPositive = correlation.correlationStrength > 0;
 
     return Row(
       children: [

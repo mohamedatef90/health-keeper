@@ -332,7 +332,7 @@ class _WeeklyWorkoutPlanScreenState
                             : AppColors.strain),
                     size: 20,
                   ),
-                  if (!isRestDay && workout != null)
+                  if (!isRestDay)
                     Text(
                       '${workout.estimatedMinutes}m',
                       style: AppTypography.bodySmall.copyWith(

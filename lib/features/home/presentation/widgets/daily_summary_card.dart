@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -213,15 +214,15 @@ class DailySummaryCard extends ConsumerWidget {
             '⚖️',
             '${context.weight!.toStringAsFixed(1)} kg',
           ),
-        if (context.sleepHours != null)
+        if (context.sleepDuration != null)
           _buildStatChip(
             '😴',
-            '${context.sleepHours!.toStringAsFixed(1)}h',
+            '${context.sleepDuration!.toStringAsFixed(1)}h',
           ),
-        if (context.hrv != null)
+        if (context.sleepHRV != null)
           _buildStatChip(
             '💓',
-            'HRV ${context.hrv!.toStringAsFixed(0)}',
+            'HRV ${context.sleepHRV!.toStringAsFixed(0)}',
           ),
         if (context.steps != null)
           _buildStatChip(
@@ -364,7 +365,7 @@ class DailySummaryCard extends ConsumerWidget {
           child: _buildActionButton(
             icon: Icons.chat_bubble_outline,
             label: 'Chat',
-            onTap: () => context.go('/agent-chat'),
+            onTap: () => context.go('/agents/chat'),
           ),
         ),
         const SizedBox(width: AppSpacing.sm),
@@ -372,7 +373,7 @@ class DailySummaryCard extends ConsumerWidget {
           child: _buildActionButton(
             icon: Icons.rule_outlined,
             label: 'Protocol',
-            onTap: () => context.go('/protocol-settings'),
+            onTap: () => context.go('/health/protocol-settings'),
           ),
         ),
       ],
@@ -462,11 +463,12 @@ class DailySummaryCard extends ConsumerWidget {
   bool _isRuleActiveToday(ProtocolRule rule, String dayName) {
     try {
       final schedule = rule.scheduleJson;
-      if (schedule == null || schedule.isEmpty) return false;
+      if (schedule.isEmpty) return false;
 
-      final Map<String, dynamic> data = 
-          const {} as Map<String, dynamic>; // Will be parsed from JSON
-      
+      final data = Map<String, dynamic>.from(
+        const JsonDecoder().convert(schedule) as Map,
+      );
+
       if (data.containsKey('days')) {
         final days = data['days'] as List;
         return days.contains(dayName);

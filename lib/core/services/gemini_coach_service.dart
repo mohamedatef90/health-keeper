@@ -607,87 +607,161 @@ Avoid body-shaming language.
 
   // Response Parsers
   DailyBriefResult _parseDailyBriefResponse(String text) {
-    // In production, parse JSON properly
-    // For now, return a structured result
-    try {
-      // Extract JSON from response
-      final jsonMatch = RegExp(r'\{[\s\S]*\}').firstMatch(text);
-      if (jsonMatch == null) return DailyBriefResult.fallback();
+    final data = _extractJson(text);
+    if (data == null) return DailyBriefResult.fallback();
 
-      // Parse and return (simplified for brevity)
+    try {
       return DailyBriefResult(
-        recoveryScore: 75,
-        readinessScore: 70,
-        suggestedIntensity: 3,
-        topActions: ['Stay hydrated', 'Hit protein target', 'Light walk'],
-        warnings: [],
-        coachingText: 'Good recovery today! Focus on nutrition and light movement.',
+        recoveryScore: (data['recoveryScore'] ?? 50) as int,
+        readinessScore: (data['readinessScore'] ?? 50) as int,
+        suggestedIntensity: (data['suggestedIntensity'] ?? 3) as int,
+        topActions: List<String>.from(data['topActions'] ?? []),
+        warnings: List<String>.from(data['warnings'] ?? []),
+        coachingText: data['coachingText'] ?? '',
         isAiGenerated: true,
       );
     } catch (e) {
+      _talker.warning('Failed to parse daily brief response: $e');
       return DailyBriefResult.fallback();
     }
   }
 
   FoodAnalysisResult _parseFoodAnalysisResponse(String text) {
-    // Simplified parsing
-    return FoodAnalysisResult(
-      items: [],
-      totalCalories: 0,
-      totalProtein: 0,
-      totalCarbs: 0,
-      totalFat: 0,
-      overallConfidence: 0,
-      rawResponse: text,
-    );
+    final data = _extractJson(text);
+    if (data == null) {
+      return FoodAnalysisResult(
+        items: [],
+        totalCalories: 0,
+        totalProtein: 0,
+        totalCarbs: 0,
+        totalFat: 0,
+        overallConfidence: 0,
+        rawResponse: text,
+      );
+    }
+
+    try {
+      final items = (data['items'] as List? ?? []).map((item) => FoodItem(
+            name: item['name'] ?? 'Unknown',
+            portion: item['portion'] ?? '',
+            calories: (item['calories'] ?? 0) as int,
+            protein: (item['protein'] ?? 0) as int,
+            carbs: (item['carbs'] ?? 0) as int,
+            fat: (item['fat'] ?? 0) as int,
+            confidence: (item['confidence'] ?? 0) as int,
+          )).toList();
+
+      return FoodAnalysisResult(
+        items: items,
+        totalCalories: (data['totalCalories'] ?? 0) as int,
+        totalProtein: (data['totalProtein'] ?? 0) as int,
+        totalCarbs: (data['totalCarbs'] ?? 0) as int,
+        totalFat: (data['totalFat'] ?? 0) as int,
+        overallConfidence: (data['overallConfidence'] ?? 0) as int,
+        rawResponse: text,
+      );
+    } catch (e) {
+      _talker.warning('Failed to parse food analysis response: $e');
+      return FoodAnalysisResult(
+        items: [],
+        totalCalories: 0,
+        totalProtein: 0,
+        totalCarbs: 0,
+        totalFat: 0,
+        overallConfidence: 0,
+        rawResponse: text,
+      );
+    }
   }
 
   TrainingRecommendation _parseTrainingResponse(String text) {
-    return TrainingRecommendation(
-      recommendedType: 'Light cardio',
-      recommendedIntensity: 3,
-      recommendedDuration: 30,
-      reasoning: 'Based on your recovery score',
-      alternatives: ['Walking', 'Yoga'],
-    );
+    final data = _extractJson(text);
+    if (data == null) return TrainingRecommendation.fallback();
+
+    try {
+      return TrainingRecommendation(
+        recommendedType: data['recommendedType'] ?? 'Light activity',
+        recommendedIntensity: (data['recommendedIntensity'] ?? 3) as int,
+        recommendedDuration: (data['recommendedDuration'] ?? 30) as int,
+        reasoning: data['reasoning'] ?? '',
+        alternatives: List<String>.from(data['alternatives'] ?? []),
+      );
+    } catch (e) {
+      _talker.warning('Failed to parse training response: $e');
+      return TrainingRecommendation.fallback();
+    }
   }
 
   PlateauAnalysis _parsePlateauResponse(String text) {
-    return PlateauAnalysis(
-      plateauDetected: false,
-      daysSincePlateau: null,
-      potentialCauses: [],
-      suggestions: [],
-      analysis: 'No plateau detected',
-    );
+    final data = _extractJson(text);
+    if (data == null) return PlateauAnalysis.none();
+
+    try {
+      return PlateauAnalysis(
+        plateauDetected: data['plateauDetected'] ?? false,
+        daysSincePlateau: data['daysSincePlateau'] as int?,
+        potentialCauses: List<String>.from(data['potentialCauses'] ?? []),
+        suggestions: List<String>.from(data['suggestions'] ?? []),
+        analysis: data['analysis'] ?? '',
+      );
+    } catch (e) {
+      _talker.warning('Failed to parse plateau response: $e');
+      return PlateauAnalysis.none();
+    }
   }
 
   WeeklyReportResult _parseWeeklyReportResponse(String text) {
-    return WeeklyReportResult(
-      summary: 'Good week overall',
-      highlights: ['Consistent logging', 'Hit protein targets'],
-      concerns: [],
-      progressAnalysis: 'Steady progress',
-      nextWeekFocus: 'Maintain consistency',
-    );
+    final data = _extractJson(text);
+    if (data == null) return WeeklyReportResult.fallback();
+
+    try {
+      return WeeklyReportResult(
+        summary: data['summary'] ?? '',
+        highlights: List<String>.from(data['highlights'] ?? []),
+        concerns: List<String>.from(data['concerns'] ?? []),
+        progressAnalysis: data['progressAnalysis'] ?? '',
+        nextWeekFocus: data['nextWeekFocus'] ?? '',
+      );
+    } catch (e) {
+      _talker.warning('Failed to parse weekly report response: $e');
+      return WeeklyReportResult.fallback();
+    }
   }
 
   RescueDayPlan _parseRescuePlanResponse(String text) {
-    return RescueDayPlan(
-      nutritionPlan: 'Focus on protein, allow flexibility',
-      activitySuggestion: 'Gentle walk or rest',
-      sleepTip: 'Aim for bed 30 min earlier',
-      mindsetMessage: 'Rest is part of progress',
-      tomorrowNote: 'Tomorrow is a fresh start',
-    );
+    final data = _extractJson(text);
+    if (data == null) return RescueDayPlan.fallback();
+
+    try {
+      return RescueDayPlan(
+        nutritionPlan: data['nutritionPlan'] ?? '',
+        activitySuggestion: data['activitySuggestion'] ?? '',
+        sleepTip: data['sleepTip'] ?? '',
+        mindsetMessage: data['mindsetMessage'] ?? '',
+        tomorrowNote: data['tomorrowNote'] ?? '',
+      );
+    } catch (e) {
+      _talker.warning('Failed to parse rescue plan response: $e');
+      return RescueDayPlan.fallback();
+    }
   }
 
   PhotoComparisonResult _parsePhotoComparisonResponse(String text) {
-    return PhotoComparisonResult(
-      insights: 'Visible progress detected',
-      detectedChanges: [],
-      encouragement: 'Keep up the great work!',
-    );
+    final data = _extractJson(text);
+    if (data == null) {
+      return PhotoComparisonResult.error('Failed to parse comparison');
+    }
+
+    try {
+      return PhotoComparisonResult(
+        insights: data['insights'] ?? '',
+        detectedChanges: List<String>.from(data['detectedChanges'] ?? []),
+        encouragement: data['encouragement'] ?? '',
+      );
+    } catch (e) {
+      _talker.warning('Failed to parse photo comparison response: $e');
+      return PhotoComparisonResult.error('Failed to parse comparison');
+    }
   }
 
   // ============ NEW HEALTH PREDICTION IMPLEMENTATIONS ============

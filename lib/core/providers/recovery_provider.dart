@@ -13,8 +13,6 @@ final recoveryCalculatorProvider = Provider<RecoveryCalculator>((ref) {
 final todayRecoveryScoreProvider = FutureProvider<RecoveryScore?>((ref) async {
   final healthKitService = ref.watch(healthKitServiceProvider);
   final calculator = ref.watch(recoveryCalculatorProvider);
-  final database = ref.watch(databaseProvider);
-
   final today = DateTime.now();
 
   // Fetch today's health data

@@ -1,8 +1,10 @@
+import 'package:drift/drift.dart' hide Column;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import '../../../../core/data/database/database.dart';
 import '../../../../core/providers/providers.dart';
 import '../../../../core/ui/tokens/colors.dart';
 import '../../../../core/ui/tokens/spacing.dart';
@@ -63,13 +65,51 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         curve: Curves.easeInOut,
       );
     } else {
-      // Complete onboarding
-      context.go('/');
+      _completeOnboarding();
     }
   }
 
   void _skipToEnd() {
-    context.go('/');
+    _completeOnboarding();
+  }
+
+  Future<void> _completeOnboarding() async {
+    final db = ref.read(databaseProvider);
+    final profile = await db.getUserProfile();
+    final now = DateTime.now();
+    if (profile != null) {
+      await db.updateUserProfile(
+        UserProfilesCompanion(
+          id: Value(profile.id),
+          createdAt: Value(profile.createdAt),
+          updatedAt: Value(now),
+          height: Value(profile.height),
+          age: Value(profile.age),
+          gender: Value(profile.gender),
+          timezone: Value(profile.timezone),
+          goalsJson: Value(profile.goalsJson),
+          aiPreferencesJson: Value(profile.aiPreferencesJson),
+          hasCompletedOnboarding: const Value(true),
+          hasGrantedHealthKitPermission: Value(profile.hasGrantedHealthKitPermission),
+          hasGrantedAiConsent: Value(profile.hasGrantedAiConsent),
+          hasGrantedPhotoConsent: Value(profile.hasGrantedPhotoConsent),
+        ),
+      );
+    } else {
+      // Create profile if it doesn't exist
+      await db.insertUserProfile(
+        UserProfilesCompanion.insert(
+          id: 'default_user',
+          createdAt: now,
+          updatedAt: now,
+          timezone: DateTime.now().timeZoneName,
+          goalsJson: '{}',
+          aiPreferencesJson: '{"language":"ar"}',
+          hasCompletedOnboarding: const Value(true),
+        ),
+      );
+    }
+    if (mounted) context.go('/');
   }
 
   @override
@@ -224,6 +264,30 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         // Request HealthKit permissions
         final healthKitService = ref.read(healthKitServiceProvider);
         granted = await healthKitService.requestPermissions();
+        if (granted) {
+          // Persist that HealthKit permission was granted
+          final db = ref.read(databaseProvider);
+          final profile = await db.getUserProfile();
+          if (profile != null) {
+            await db.updateUserProfile(
+              UserProfilesCompanion(
+                id: Value(profile.id),
+                createdAt: Value(profile.createdAt),
+                updatedAt: Value(DateTime.now()),
+                height: Value(profile.height),
+                age: Value(profile.age),
+                gender: Value(profile.gender),
+                timezone: Value(profile.timezone),
+                goalsJson: Value(profile.goalsJson),
+                aiPreferencesJson: Value(profile.aiPreferencesJson),
+                hasCompletedOnboarding: Value(profile.hasCompletedOnboarding),
+                hasGrantedHealthKitPermission: const Value(true),
+                hasGrantedAiConsent: Value(profile.hasGrantedAiConsent),
+                hasGrantedPhotoConsent: Value(profile.hasGrantedPhotoConsent),
+              ),
+            );
+          }
+        }
         if (!granted && mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(

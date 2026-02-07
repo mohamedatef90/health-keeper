@@ -1,6 +1,8 @@
+import 'package:drift/drift.dart' hide Column;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/data/database/database.dart';
 import '../../../../core/providers/providers.dart';
 import '../../../../core/ui/tokens/colors.dart';
 import '../../../../core/ui/tokens/spacing.dart';
@@ -128,8 +130,34 @@ class ConnectHealthBanner extends ConsumerWidget {
     final granted = await healthKitService.requestPermissions();
 
     if (granted) {
+      // Persist HealthKit permission in DB (iOS hasPermissions() is unreliable)
+      final db = ref.read(databaseProvider);
+      final profile = await db.getUserProfile();
+      if (profile != null) {
+        await db.updateUserProfile(
+          UserProfilesCompanion(
+            id: Value(profile.id),
+            createdAt: Value(profile.createdAt),
+            updatedAt: Value(DateTime.now()),
+            height: Value(profile.height),
+            age: Value(profile.age),
+            gender: Value(profile.gender),
+            timezone: Value(profile.timezone),
+            goalsJson: Value(profile.goalsJson),
+            aiPreferencesJson: Value(profile.aiPreferencesJson),
+            hasCompletedOnboarding: Value(profile.hasCompletedOnboarding),
+            hasGrantedHealthKitPermission: const Value(true),
+            hasGrantedAiConsent: Value(profile.hasGrantedAiConsent),
+            hasGrantedPhotoConsent: Value(profile.hasGrantedPhotoConsent),
+          ),
+        );
+      }
+
       // Refresh the permission status provider
       ref.invalidate(healthKitPermissionStatusProvider);
+
+      // Trigger a full data sync now that we have permission
+      ref.invalidate(agentSyncStatusProvider);
 
       // Refresh health data providers
       ref.invalidate(todayStrainScoreProvider);

@@ -390,7 +390,6 @@ class _BehaviorInputDialogState extends State<BehaviorInputDialog> {
   late TextEditingController _valueController;
   late TextEditingController _noteController;
   int? _intensity;
-  int? _duration;
   String? _selectedOption;
 
   @override
@@ -404,7 +403,6 @@ class _BehaviorInputDialogState extends State<BehaviorInputDialog> {
       text: widget.existingBehavior?.note ?? '',
     );
     _intensity = widget.existingBehavior?.intensity;
-    _duration = widget.existingBehavior?.durationMinutes;
 
     if (widget.behavior.inputType == BehaviorInputType.options &&
         widget.existingBehavior?.customDataJson != null) {
@@ -529,9 +527,7 @@ class _BehaviorInputDialogState extends State<BehaviorInputDialog> {
             suffixText: 'minutes',
             border: OutlineInputBorder(),
           ),
-          onChanged: (value) {
-            _duration = int.tryParse(value);
-          },
+          onChanged: (_) {},
         );
 
       case BehaviorInputType.intensity:

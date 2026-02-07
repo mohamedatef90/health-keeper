@@ -203,13 +203,13 @@ class AgentSuggestionsWidget extends ConsumerWidget {
     final protocols = await db.getAllProtocolRules(activeOnly: true);
 
     // 1. HRV-based suggestion (Fitness Agent)
-    if (context?.hrv != null && context!.hrv! < 50) {
+    if (context?.sleepHRV != null && context!.sleepHRV! < 50) {
       suggestions.add(
         AgentSuggestion(
           agentName: '🏋️ Fitness Agent',
           emoji: '🏋️',
           title: 'Low HRV Detected',
-          message: 'Your HRV is ${context.hrv!.toStringAsFixed(0)} (low). '
+          message: 'Your HRV is ${context.sleepHRV!.toStringAsFixed(0)} (low). '
               'Consider a rest day or light activity today.',
           color: AppColors.warning,
           actionLabel: 'View Recovery',
@@ -219,13 +219,13 @@ class AgentSuggestionsWidget extends ConsumerWidget {
     }
 
     // 2. Sleep-based suggestion (Health Agent)
-    if (context?.sleepHours != null && context!.sleepHours! < 6.5) {
+    if (context?.sleepDuration != null && context!.sleepDuration! < 6.5) {
       suggestions.add(
         AgentSuggestion(
           agentName: '🩺 Health Agent',
           emoji: '🩺',
           title: 'Poor Sleep Quality',
-          message: 'You slept only ${context.sleepHours!.toStringAsFixed(1)}h. '
+          message: 'You slept only ${context.sleepDuration!.toStringAsFixed(1)}h. '
               'Prioritize recovery today and aim for earlier bedtime tonight.',
           color: AppColors.alert,
           actionLabel: 'Sleep Tips',

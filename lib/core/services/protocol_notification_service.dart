@@ -1,4 +1,3 @@
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:health_keeper/core/data/database/database.dart';
 import 'package:health_keeper/core/services/notification_service.dart';
 import 'package:talker/talker.dart';
@@ -53,7 +52,7 @@ class ProtocolNotificationService {
   /// Mounjaro injection reminders
   Future<void> _setupMounjaroNotifications(ProtocolRule protocol) async {
     try {
-      final schedule = jsonDecode(protocol.scheduleJson ?? '{}');
+      final schedule = jsonDecode(protocol.scheduleJson);
       final days = schedule['days'] as List?;
       final time = schedule['time'] as String?;
 
@@ -90,7 +89,7 @@ class ProtocolNotificationService {
   /// Football prep notifications (day before)
   Future<void> _setupFootballNotifications(ProtocolRule protocol) async {
     try {
-      final schedule = jsonDecode(protocol.scheduleJson ?? '{}');
+      final schedule = jsonDecode(protocol.scheduleJson);
       final days = schedule['days'] as List?;
 
       if (days == null) return;
@@ -121,7 +120,7 @@ class ProtocolNotificationService {
   /// Eating window notifications
   Future<void> _setupEatingWindowNotifications(ProtocolRule protocol) async {
     try {
-      final schedule = jsonDecode(protocol.scheduleJson ?? '{}');
+      final schedule = jsonDecode(protocol.scheduleJson);
       final start = schedule['start'] as String?;
       final end = schedule['end'] as String?;
 

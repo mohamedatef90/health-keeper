@@ -7,10 +7,17 @@ import 'providers.dart';
 /// Provider for HealthKit permission status
 ///
 /// Returns true if HealthKit permissions have been granted.
-/// Use this to show a "Connect Health" banner when permissions are missing.
+/// Uses both HealthKit API and DB flag as fallback (iOS may return null).
 final healthKitPermissionStatusProvider = FutureProvider<bool>((ref) async {
   final healthKitService = ref.watch(healthKitServiceProvider);
-  return healthKitService.hasPermissions();
+  final apiResult = await healthKitService.hasPermissions();
+  if (apiResult) return true;
+
+  // Fallback: check persisted flag in DB (iOS hasPermissions can return false
+  // even after granting because HealthKit doesn't expose permission state)
+  final db = ref.watch(databaseProvider);
+  final profile = await db.getUserProfile();
+  return profile?.hasGrantedHealthKitPermission ?? false;
 });
 
 /// Provider for the current health prediction

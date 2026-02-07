@@ -34,7 +34,7 @@ class MealLogScreen extends ConsumerWidget {
                     icon: Icons.camera_alt,
                     label: 'Camera',
                     subtitle: 'AI food recognition',
-                    onTap: () => context.go('/camera-food'),
+                    onTap: () => context.go('/health/camera-food'),
                   ),
                 ),
                 const SizedBox(width: AppSpacing.md),

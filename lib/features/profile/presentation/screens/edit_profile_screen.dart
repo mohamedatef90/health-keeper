@@ -87,7 +87,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
             backgroundColor: AppColors.success,
           ),
         );
-        context.go('/settings');
+        context.go('/profile/settings');
       }
     } catch (e) {
       if (mounted) {
@@ -119,7 +119,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
           TextButton(
             onPressed: () {
               Navigator.pop(context);
-              context.go('/settings');
+              context.go('/profile/settings');
             },
             style: TextButton.styleFrom(foregroundColor: AppColors.error),
             child: const Text('Discard'),
@@ -147,7 +147,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
               if (_hasChanges) {
                 _showDiscardChangesDialog();
               } else {
-                context.go('/settings');
+                context.go('/profile/settings');
               }
             },
           ),

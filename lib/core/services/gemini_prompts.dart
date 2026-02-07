@@ -1434,8 +1434,6 @@ class WorkoutClassificationPrompt {
     required Map<String, dynamic>? zones,
     String language = 'en',
   }) {
-    final lang = language == 'ar' ? 'Arabic' : 'English';
-
     return '''
 $aiSafetyPreamble
 
@@ -1904,7 +1902,6 @@ class WeeklyMealPlanPrompt {
     required int strengthDayProteinBonus,
     String language = 'ar',
   }) {
-    final lang = language == 'ar' ? 'Arabic' : 'English';
     final isArabic = language == 'ar';
 
     // Build workout schedule description

@@ -255,9 +255,6 @@ class WorkoutDetectionServiceImpl implements WorkoutDetectionService {
   @override
   Future<List<DetectedWorkout>> getDetectedWorkoutsForDay(DateTime date) async {
     try {
-      final startOfDay = DateTime(date.year, date.month, date.day);
-      final endOfDay = startOfDay.add(const Duration(days: 1));
-
       // Fetch HealthKit data for the day
       final healthData = await _healthKitService.fetchRecoveryData(date);
 

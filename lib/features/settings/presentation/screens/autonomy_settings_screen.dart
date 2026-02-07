@@ -20,7 +20,7 @@ class AutonomySettingsScreen extends ConsumerWidget {
         title: const Text('AI Autonomy'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/settings'),
+          onPressed: () => context.go('/profile/settings'),
         ),
       ),
       body: settingsAsync.when(

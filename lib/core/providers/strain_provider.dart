@@ -22,9 +22,6 @@ final todayStrainScoreProvider = FutureProvider<StrainScore?>((ref) async {
 
   // Get today's date
   final today = DateTime.now();
-  final startOfDay = DateTime(today.year, today.month, today.day);
-  final endOfDay = startOfDay.add(const Duration(days: 1));
-
   // Fetch health data
   final healthData = await healthKitService.fetchRecoveryData(today);
 

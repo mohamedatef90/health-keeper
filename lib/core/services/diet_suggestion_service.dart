@@ -82,9 +82,7 @@ class DietSuggestionServiceImpl implements DietSuggestionService {
   ) async {
     try {
       // Calculate per-meal targets
-      final mealsCount = context.mealsPerDay;
       final snacksCount = context.includeSnacks ? 2 : 0;
-      final totalMealSlots = mealsCount + snacksCount;
 
       // Distribute calories and protein
       final breakfastCalories = (context.targetCalories * 0.25).round();

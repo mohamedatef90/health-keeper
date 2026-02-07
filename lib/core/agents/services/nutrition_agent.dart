@@ -1,4 +1,7 @@
+import 'dart:convert';
+
 import 'package:health_keeper/core/data/database/database.dart';
+import 'package:health_keeper/core/agents/context/agent_context.dart';
 import 'package:health_keeper/core/agents/services/base_agent.dart';
 import 'package:health_keeper/core/agents/router/agent_router.dart';
 import 'package:health_keeper/core/services/gemini_coach_service.dart';
@@ -31,7 +34,9 @@ class NutritionAgent extends BaseAgent {
 ''';
 
   @override
-  String buildSystemPrompt({String language = 'ar'}) {
+  String buildSystemPrompt({String language = 'ar', AgentContextState? context}) {
+    final protocolInfo = _extractProtocolInfo(context);
+
     return '''
 # أنت: Nutrition Agent 🍽️
 
@@ -45,9 +50,9 @@ $personality
 5. التعامل مع آثار موونجارو (فقدان الشهية)
 
 ## القواعد:
-- الـeating window: 11 صباحاً - 8 مساءً (15 ساعة صيام)
-- هدف السعرات: ~2000 kcal/day (deficit 300)
-- هدف البروتين: 150g/day
+- الـeating window: ${protocolInfo['eatingWindow']}
+- هدف السعرات: ${protocolInfo['calorieTarget']}
+- هدف البروتين: ${protocolInfo['proteinTarget']}
 - لو في تمرين شاق، زود السعرات 200-300
 - لو موونجارو اليوم، الشهية قد تكون قليلة - ركز على البروتين
 - لو ماتش كورة بكرة، زود الكارب شوية (energy)
@@ -66,11 +71,11 @@ $personality
 
 **سؤال:** "how much protein today?"
 **رد جيد:** "You've had 85g so far (breakfast + lunch).
-Target: 150g → Need 65g more
+Target: ${protocolInfo['proteinTarget']} → Need 65g more
 
 Easy options:
 • Greek yogurt 200g = 20g
-• Protein shake = 25g  
+• Protein shake = 25g
 • Chicken breast 150g = 45g
 
 Pick 2 and you're set ✅"
@@ -81,5 +86,42 @@ Pick 2 and you're set ✅"
 - ما تنسى الماء (2-3L/day)
 - لو السعرات عالية جداً، اسأل عن السبب (ما تحكمش)
 ''';
+  }
+
+  Map<String, String> _extractProtocolInfo(AgentContextState? context) {
+    final defaults = {
+      'eatingWindow': '11 صباحاً - 8 مساءً (15 ساعة صيام)',
+      'calorieTarget': '~2000 kcal/day',
+      'proteinTarget': '150g/day',
+    };
+
+    if (context == null) return defaults;
+
+    for (final rule in context.protocolRules) {
+      try {
+        final schedule = json.decode(rule.scheduleJson) as Map<String, dynamic>;
+
+        if (rule.name == 'eating-window') {
+          final start = schedule['startTime'] ?? schedule['start'];
+          final end = schedule['endTime'] ?? schedule['end'];
+          if (start != null && end != null) {
+            defaults['eatingWindow'] = '$start - $end';
+          }
+        }
+
+        if (rule.name == 'nutrition-targets' || rule.name == 'calorie-target') {
+          if (schedule['calories'] != null) {
+            defaults['calorieTarget'] = '~${schedule['calories']} kcal/day';
+          }
+          if (schedule['protein'] != null) {
+            defaults['proteinTarget'] = '${schedule['protein']}g/day';
+          }
+        }
+      } catch (_) {
+        // Skip unparseable rules
+      }
+    }
+
+    return defaults;
   }
 }

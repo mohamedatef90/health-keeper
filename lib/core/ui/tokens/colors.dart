@@ -203,6 +203,21 @@ class AppColors {
   );
 
   // ============================================
+  // Bottom Navigation Colors
+  // ============================================
+  static const Color tabActive = Color(0xFFFFFFFF);
+  static const Color tabInactive = Color(0xFF636366);
+  static const Color centerTabHighlight = Color(0xFFBE72FF);
+
+  // ============================================
+  // Agent Colors
+  // ============================================
+  static const Color agentFitness = Color(0xFFFF6B6B);
+  static const Color agentNutrition = Color(0xFF00D4AA);
+  static const Color agentHealth = Color(0xFF6B7AFF);
+  static const Color agentGeneral = Color(0xFFBE72FF);
+
+  // ============================================
   // Ring/Chart Colors
   // ============================================
   static const Color ringBackground = Color(0xFF2A2A2A);

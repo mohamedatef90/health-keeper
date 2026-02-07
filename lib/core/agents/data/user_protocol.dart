@@ -123,58 +123,6 @@ class UserProtocol {
   }
 
   // ==========================================================================
-  // ADD YOUR OWN PROTOCOL RULES BELOW
-  // ==========================================================================
-
-  /// Example: Sleep schedule
-  Future<void> _seedSleepSchedule() async {
-    await db.insertProtocolRule(
-      ProtocolRulesCompanion.insert(
-        id: _uuid.v4(),
-        category: 'sleep',
-        name: 'sleep-schedule',
-
-        scheduleJson: jsonEncode({
-          'bedtime': '23:00',
-          'wake_time': '07:00',
-        }),
-
-        rulesJson: jsonEncode({
-          'targetDuration': 8.0, // hours
-          'notes': 'Aim for 8 hours. Track HRV for quality.',
-        }),
-
-        isActive: Value(true),
-        createdAt: DateTime.now(),
-      ),
-    );
-  }
-
-  /// Example: Gym days
-  Future<void> _seedGymSchedule() async {
-    await db.insertProtocolRule(
-      ProtocolRulesCompanion.insert(
-        id: _uuid.v4(),
-        category: 'activity',
-        name: 'gym-schedule',
-
-        scheduleJson: jsonEncode({
-          'days': ['sunday', 'tuesday', 'thursday', 'saturday'],
-          'time': '17:00',
-        }),
-
-        rulesJson: jsonEncode({
-          'types': ['strength', 'hypertrophy'],
-          'notes': '4x per week strength training.',
-        }),
-
-        isActive: Value(true),
-        createdAt: DateTime.now(),
-      ),
-    );
-  }
-
-  // ==========================================================================
   // UTILITY METHODS
   // ==========================================================================
 

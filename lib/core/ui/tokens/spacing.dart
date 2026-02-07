@@ -76,6 +76,11 @@ class AppSpacing {
   // Bottom navigation
   static const double bottomNavHeight = 80.0;
 
+  // Metric dials
+  static const double dialSize = 100.0;
+  static const double dialSizeSmall = 80.0;
+  static const double dialStrokeWidth = 8.0;
+
   // Safe area
   static const double safeAreaBottom = 34.0;
 }

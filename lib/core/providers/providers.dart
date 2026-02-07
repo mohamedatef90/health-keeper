@@ -73,11 +73,16 @@ final appInitializationProvider = FutureProvider<bool>((ref) async {
   final db = ref.read(databaseProvider);
   await FirstLaunchSeeder.seedIfNeeded(db);
 
-  // Sync Apple Health data to Agent system (daily)
+  // Sync Apple Health data to Agent system
   final agentSync = ref.read(agentSyncServiceProvider);
   await agentSync.syncTodayContext();
 
-  // Additional initialization as needed
+  // Start periodic sync (every 30 min) to keep data fresh
+  agentSync.startPeriodicSync();
+
+  // Clean up timer when provider is disposed
+  ref.onDispose(() => agentSync.stopPeriodicSync());
+
   return true;
 });
 

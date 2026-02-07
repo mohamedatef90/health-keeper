@@ -130,7 +130,7 @@ class AiBrainMonitorService {
           category: 'activity',
         ),
       ],
-      confidence: _calculateConfidence(hrv != null, baseline != null, trends?.hrvValues.isNotEmpty ?? false),
+      confidence: _calculateConfidence(true, true, trends?.hrvValues.isNotEmpty ?? false),
       detectedAt: DateTime.now(),
     );
   }
@@ -188,7 +188,7 @@ class AiBrainMonitorService {
           category: 'sleep',
         ),
       ],
-      confidence: _calculateConfidence(rhr != null, baseline != null, trends?.rhrValues.isNotEmpty ?? false),
+      confidence: _calculateConfidence(true, true, trends?.rhrValues.isNotEmpty ?? false),
       detectedAt: DateTime.now(),
     );
   }

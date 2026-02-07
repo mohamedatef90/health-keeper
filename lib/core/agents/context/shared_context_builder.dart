@@ -137,7 +137,7 @@ class SharedContextBuilder {
         .toList();
 
     // Get recovery scores
-    final recoveryScores = await db.select(db.recoveryScores)
+    final recoveryScores = db.select(db.recoveryScores)
       ..where((r) => r.date.isBiggerOrEqualValue(weekStart))
       ..where((r) => r.date.isSmallerThanValue(weekEnd));
     final recoveries = await recoveryScores.get();

@@ -166,7 +166,7 @@ class _CoachScreenState extends ConsumerState<CoachScreen> {
 
   Widget _buildWeeklyPlanCard() {
     return InkWell(
-      onTap: () => context.go('/weekly-workout-plan'),
+      onTap: () => context.go('/agents/weekly-workout-plan'),
       borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
       child: Container(
         padding: const EdgeInsets.all(AppSpacing.md),
@@ -319,7 +319,7 @@ class _CoachScreenState extends ConsumerState<CoachScreen> {
               context.go('/');
               break;
             case 1:
-              context.go('/meal-log');
+              context.go('/health/meal-log');
               break;
             case 2:
               break; // Already on coach

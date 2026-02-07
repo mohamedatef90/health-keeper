@@ -1,9 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/agents/router/agent_router.dart';
 import '../../../../core/services/agent_chat_adapter.dart';
 import '../../../../core/providers/providers.dart';
-import '../../domain/entities/chat_message.dart';
-import '../../domain/entities/chat_thread.dart';
 import 'coach_chat_repository.dart';
 
 /// Notifier for managing chat with Agent system (instead of AI Brain)
@@ -13,6 +12,9 @@ class AgentCoachChatNotifier extends StateNotifier<CoachChatState> {
   final CoachChatRepository _repository;
   final AgentChatAdapter _agentAdapter;
   final Future<String> Function() _getUserLanguage;
+
+  /// The forced agent type for per-agent chats (null = auto-route/smart chat)
+  AgentType? _forcedAgentType;
 
   AgentCoachChatNotifier({
     required CoachChatRepository repository,
@@ -25,7 +27,12 @@ class AgentCoachChatNotifier extends StateNotifier<CoachChatState> {
 
   /// Initialize or load a chat for a specific context
   Future<void> initChat({String? contextTag}) async {
-    state = state.copyWith(isLoading: true, error: null);
+    // Reset state fully when switching to a different context
+    state = const CoachChatState(isLoading: true);
+
+    // Determine forced agent type from contextTag (e.g., "agent:fitness")
+    _forcedAgentType = _parseAgentType(contextTag);
+
     try {
       final thread = await _repository.getOrCreateThread(contextTag);
       final messages = await _repository.getMessages(thread.id);
@@ -44,8 +51,8 @@ class AgentCoachChatNotifier extends StateNotifier<CoachChatState> {
         try {
           final language = await _getUserLanguage();
 
-          final greeting = _agentAdapter.getGreeting(language);
-          quickReplies = _agentAdapter.getInitialQuickReplies(language);
+          final greeting = _agentAdapter.getGreeting(language, forceAgentType: _forcedAgentType);
+          quickReplies = _agentAdapter.getInitialQuickReplies(language, forceAgentType: _forcedAgentType);
 
           // Add greeting as system message
           final greetingMessage = await _repository.addAssistantMessage(
@@ -62,8 +69,23 @@ class AgentCoachChatNotifier extends StateNotifier<CoachChatState> {
             quickReplies: quickReplies,
           );
           return;
-        } catch (_) {
-          // If language fetch fails, continue without greeting
+        } catch (e) {
+          // If greeting generation fails, show a fallback greeting
+          final fallbackGreeting = await _repository.addAssistantMessage(
+            threadId: thread.id,
+            content: _forcedAgentType != null
+                ? 'مرحباً! كيف أقدر أساعدك؟ 👋'
+                : '👋 مرحباً! أنا مساعدك الصحي. إزاي أقدر أساعدك النهاردة؟',
+            quickReplies: [],
+            contextTag: contextTag,
+          );
+
+          state = state.copyWith(
+            activeThread: thread,
+            messages: [fallbackGreeting],
+            isLoading: false,
+          );
+          return;
         }
       }
 
@@ -118,10 +140,11 @@ class AgentCoachChatNotifier extends StateNotifier<CoachChatState> {
       // Get language
       final language = await _getUserLanguage();
 
-      // Process message with agent system
+      // Process message with agent system (force to specific agent if in per-agent chat)
       final response = await _agentAdapter.processMessage(
         message: userMessage,
         language: language,
+        forceAgentType: _forcedAgentType,
       );
 
       // Add agent response to thread
@@ -197,6 +220,17 @@ class AgentCoachChatNotifier extends StateNotifier<CoachChatState> {
   /// Clear error state
   void clearError() {
     state = state.copyWith(error: null);
+  }
+
+  /// Parse agent type from contextTag (e.g., "agent:fitness" → AgentType.fitness)
+  AgentType? _parseAgentType(String? contextTag) {
+    if (contextTag == null || !contextTag.startsWith('agent:')) return null;
+    final typeStr = contextTag.replaceFirst('agent:', '');
+    try {
+      return AgentType.values.firstWhere((t) => t.id == typeStr);
+    } catch (_) {
+      return null;
+    }
   }
 }
 

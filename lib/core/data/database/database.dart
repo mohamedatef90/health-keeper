@@ -1387,6 +1387,27 @@ class AppDatabase extends _$AppDatabase {
     return (delete(protocolRules)..where((p) => p.id.equals(id))).go();
   }
 
+  Stream<List<ProtocolRule>> watchProtocolRules({String? category, bool activeOnly = false}) {
+    final query = select(protocolRules);
+    if (category != null) {
+      query.where((p) => p.category.equals(category));
+    }
+    if (activeOnly) {
+      query.where((p) => p.isActive.equals(true));
+    }
+    query.orderBy([(p) => OrderingTerm.asc(p.category), (p) => OrderingTerm.asc(p.name)]);
+    return query.watch();
+  }
+
+  Future<void> toggleProtocolRuleActive(String id, bool isActive) {
+    return (update(protocolRules)..where((p) => p.id.equals(id))).write(
+      ProtocolRulesCompanion(
+        isActive: Value(isActive),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
   // ============================================================================
   // AGENT CONTEXTS OPERATIONS
   // ============================================================================

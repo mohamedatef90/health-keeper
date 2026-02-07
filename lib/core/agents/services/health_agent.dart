@@ -1,4 +1,7 @@
+import 'dart:convert';
+
 import 'package:health_keeper/core/data/database/database.dart';
+import 'package:health_keeper/core/agents/context/agent_context.dart';
 import 'package:health_keeper/core/agents/services/base_agent.dart';
 import 'package:health_keeper/core/agents/router/agent_router.dart';
 import 'package:health_keeper/core/services/gemini_coach_service.dart';
@@ -31,7 +34,9 @@ class HealthAgent extends BaseAgent {
 ''';
 
   @override
-  String buildSystemPrompt({String language = 'ar'}) {
+  String buildSystemPrompt({String language = 'ar', AgentContextState? context}) {
+    final medInfo = _extractMedicationInfo(context);
+
     return '''
 # أنت: Health Agent 🩺
 
@@ -39,13 +44,13 @@ $personality
 
 ## مسؤولياتك:
 1. مراقبة المؤشرات الحيوية (HRV، معدل القلب، ضغط الدم، سكر الدم)
-2. تتبع الأدوية (موونجارو) والآثار الجانبية
+2. تتبع الأدوية والآثار الجانبية
 3. تحليل جودة النوم والاستشفاء
 4. تقديم نصائح صحية عامة
 5. تحذيرات عند وجود مؤشرات غير طبيعية
 
 ## القواعد:
-- موونجارو: الاثنين، الأربعاء، الجمعة الساعة 9 صباحاً
+- ${medInfo['medicationSchedule']}
 - آثار جانبية محتملة: غثيان، إرهاق، فقدان شهية
 - HRV الطبيعي: 50-70 ms (يختلف حسب الشخص)
 - معدل القلب الطبيعي أثناء الراحة: 50-60 bpm
@@ -67,29 +72,15 @@ $personality
 ✅ معدل القلب أثناء الراحة: 58 bpm (ممتاز)
 ⚠️ النوم: 7.5 ساعة لكن متقطع شوية
 
-السبب المحتمل: موونجارو امبارح (اليوم التاني من الحقنة).
 النصيحة: يوم خفيف، اشرب مية كتير، نام بدري الليلة 💙"
-
-**سؤال:** "when should I take mounjaro"
-**رد جيد:** "Your Mounjaro schedule: Monday, Wednesday, Friday at 9 AM.
-
-Today is Tuesday → Next dose: Wednesday 9 AM (tomorrow)
-
-Tips:
-• Take on empty stomach (before breakfast)
-• Drink plenty of water
-• If nausea occurs, eat light meals
-• Monitor how you feel on days 1-2 after injection
-
-Last dose was Monday, so you might still feel appetite suppression today ✓"
 
 **سؤال:** "HRV بتاعي واطي ليه؟"
 **رد جيد:** "HRV بتاعك 45 ms النهاردة (أقل من متوسطك 60).
 
 الأسباب المحتملة:
-1. ️تمرين شاق امبارح (leg day)
-2. نوم 6 ساعات بس (قليل)
-3. ماتش كورة بكرة (جسمك بيستعد)
+1. تمرين شاق امبارح
+2. نوم قليل
+3. إجهاد أو ضغط
 
 مش حاجة تقلق منها، ده طبيعي. النصيحة:
 • خد راحة النهاردة
@@ -104,5 +95,36 @@ Last dose was Monday, so you might still feel appetite suppression today ✓"
 - اشرح المؤشرات ببساطة (ما تستخدمش مصطلحات معقدة)
 - اربط المؤشرات بالسلوكيات (نوم، أكل، تمرين)
 ''';
+  }
+
+  Map<String, String> _extractMedicationInfo(AgentContextState? context) {
+    final defaults = {
+      'medicationSchedule': 'موونجارو: الاثنين، الأربعاء، الجمعة الساعة 9 صباحاً',
+    };
+
+    if (context == null) return defaults;
+
+    for (final rule in context.protocolRules) {
+      try {
+        final schedule = json.decode(rule.scheduleJson) as Map<String, dynamic>;
+
+        if (rule.name == 'mounjaro' || rule.category == 'medication') {
+          final days = schedule['days'] as List?;
+          final time = schedule['time'];
+          final dose = schedule['dose'];
+
+          if (days != null && days.isNotEmpty) {
+            final daysStr = days.join('، ');
+            final timeStr = time ?? '9 صباحاً';
+            final doseStr = dose != null ? ' ($dose)' : '';
+            defaults['medicationSchedule'] = '${rule.name}$doseStr: $daysStr الساعة $timeStr';
+          }
+        }
+      } catch (_) {
+        // Skip unparseable rules
+      }
+    }
+
+    return defaults;
   }
 }

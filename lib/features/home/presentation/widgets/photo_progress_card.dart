@@ -13,7 +13,7 @@ class PhotoProgressCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () => context.go('/progress-photos'),
+      onTap: () => context.go('/insights-tab/progress-photos'),
       child: Container(
         margin: const EdgeInsets.symmetric(
           horizontal: AppSpacing.md,
